@@ -1,0 +1,475 @@
+classdef minnesotabvarm < conjugatebvarm & matlab.mixin.CustomDisplay
+    %MINNESOTABVARM Conjugate Minnesota (Litterman) prior for a Bayesian VAR.
+    %
+    %   A thin subclass of CONJUGATEBVARM whose constructor materialises a
+    %   Litterman-shaped Matrix-Normal-Inverse-Wishart prior from a residual
+    %   variance vector (ppsi) and a small set of hyperparameters. It is a
+    %   *base prior* only: it never stores the estimation sample Y.
+    %
+    %   Design contract
+    %   ---------------
+    %   * The constructor is data-free. It takes a precomputed ppsi vector,
+    %     not Y, so the object is a light, reusable recipe and the GLP-style
+    %     optimiser can rebuild it cheaply for each candidate hyperparameter
+    %     set without refitting anything.
+    %   * The object remembers its hyperparameters as read-only properties,
+    %     so it can be inspected, displayed, and re-materialised with one
+    %     field changed.
+    %   * Sum-of-coefficients (lambda4) and dummy-initial-observation
+    %     (lambda5) priors are data-dependent. They are NOT baked into the
+    %     constructor. They are applied - via the same conjugate NIW update
+    %     used for the posterior - at the one place data legitimately enters:
+    %     estimate / logMarginalLikelihood / simulate / forecast. A single
+    %     private helper (applyDummies) builds the dummy-augmented prior so
+    %     estimation and the marginal likelihood always use an identical
+    %     augmented prior.
+    %   * lambda4 = lambda5 = Inf means "dummy off". The switch is isfinite,
+    %     not a zero pseudo-observation, so an Inf lambda contributes no rows
+    %     at all (a zero row would still inflate the degrees of freedom).
+    %
+    %   Hyperparameter mapping
+    %   ----------------------
+    %       lambda1  overall Minnesota tightness           (paper lambda)
+    %       lambda3  lag-decay exponent; variance ~ 1/l^(2*lambda3), paper = 1
+    %       lambda4  sum-of-coefficients tightness         (paper mu; Inf = off)
+    %       lambda5  dummy-initial-observation tightness   (paper delta; Inf = off)
+    %       Vc       prior variance of the constant / trend
+    %       ppsi     per-series residual variances (the scale the prior needs)
+    %
+    %   Note on the fixed lambda2. The classic Litterman prior has a second
+    %   hyperparameter (cross-variable relative tightness). It is deliberately
+    %   absent here: the conjugate Kronecker structure V = KK (x) inv(Psi)
+    %   cannot represent a separate own-vs-cross tightness, so lambda2 is
+    %   implicitly 1. Representing it would break conjugacy - and conjugacy is
+    %   exactly what makes the analytic marginal likelihood (and the GLP
+    %   tuner) possible. If you need a free lambda2, that belongs in a
+    %   semiconjugate variant, not this class.
+
+    properties (SetAccess = private)
+        ppsi      (1,:) double     % per-series residual variances (the prior scale)
+        lambda1   (1,1) double     % overall tightness (SelfLag)
+        lambda3   (1,1) double     % lag-decay exponent (Decay)
+        lambda2   (1,1) double = 1 % cross-variable relative tightness 
+        lambda4   (1,1) double     % sum-of-coefficients tightness (Inf = off)
+        lambda5   (1,1) double     % dummy-initial-observation tightness (Inf = off)
+        Vc        (1,1) double     % prior variance of constant / trend
+        PriorMean (1,:) double     % prior mean of own first lag, per series (Center)
+        DoFOffset (1,1) double     % IW degrees of freedom = NumSeries + DoFOffset
+    end
+
+    properties (Dependent, SetAccess = private, Hidden)
+        m       % total coefficients per equation = P*NumSeries + nex
+        nex     % number of exogenous regressors = const + trend + predictors
+    end
+
+    methods
+
+        function obj = minnesotabvarm(numseries, numlags, nvp, nvp2)
+            arguments
+                numseries (1,1) double {mustBeInteger, mustBePositive}
+                numlags   (1,1) double {mustBeInteger, mustBePositive}
+                nvp.ppsi      (1,:) double {mustBePositive}
+                nvp.lambda1   (1,1) double {mustBePositive}    = 0.2
+                nvp.lambda3   (1,1) double {mustBeNonnegative} = 1
+                nvp.lambda4   (1,1) double {mustBePositive}    = Inf
+                nvp.lambda5   (1,1) double {mustBePositive}    = Inf
+                nvp.Vc        (1,1) double {mustBePositive}    = 1e4
+                nvp.PriorMean (1,:) double = []
+                nvp2.Description
+                nvp2.IncludeConstant
+                nvp2.IncludeTrend
+                nvp2.NumPredictors
+                nvp2.SeriesNames
+            end
+
+            % ppsi is required: it is the only piece of data-derived scale the
+            % base prior depends on, and we take it precomputed rather than Y.
+            if ~isfield(nvp, "ppsi") || isempty(nvp.ppsi)
+                error("minnesotabvarm:needPpsi", ...
+                    "ppsi (one residual variance per series) is required.");
+            end
+            if numel(nvp.ppsi) ~= numseries
+                error("minnesotabvarm:ppsiSize", ...
+                    "ppsi must have %d elements, one per series.", numseries);
+            end
+
+            % Delegate the structural set-up (SeriesNames, exogenous layout,
+            % NumSeries/P bookkeeping) to the conjugate superclass.
+            args = namedargs2cell(nvp2);
+            obj  = obj@conjugatebvarm(numseries, numlags, args{:});
+
+            % Prior mean of the own first lag: default 1 (random-walk), then
+            % zero out any series flagged stationary. An explicit PriorMean
+            % overrides the default entirely.
+            if isempty(nvp.PriorMean)
+                priorMean = ones(1, numseries);
+            else
+                if numel(nvp.PriorMean) ~= numseries
+                    error("minnesotabvarm:priorMeanSize", ...
+                        "PriorMean must have %d elements, one per series.", numseries);
+                end
+                priorMean = reshape(nvp.PriorMean, 1, numseries);
+            end
+
+            % Store the hyperparameters (read-only from here on).
+            obj.ppsi      = reshape(nvp.ppsi, 1, numseries);
+            obj.lambda1   = nvp.lambda1;
+            obj.lambda3   = nvp.lambda3;
+            obj.lambda4   = nvp.lambda4;
+            obj.lambda5   = nvp.lambda5;
+            obj.Vc        = nvp.Vc;
+            obj.PriorMean = priorMean;
+
+            % Materialise the BASE prior moments (no dummies, no data).
+            [obj.Mu, obj.V, obj.Omega, obj.DoF] = obj.buildBasePrior();
+        end
+
+    end
+
+    % ---- dependent-property getters -------------------------------------
+    methods
+        function nex = get.nex(obj)
+            nex = obj.IncludeConstant + obj.IncludeTrend + obj.NumPredictors;
+        end
+        function m = get.m(obj)
+            m = obj.P*obj.NumSeries + obj.nex;
+        end
+    end
+
+    % ---- public API ------------------------------------------------------
+    methods
+
+        function [Posterior, Summary] = estimate(obj, Y, opts)
+            %ESTIMATE Analytic conjugate posterior, dummy observations included.
+            arguments
+                obj
+                Y double {mustBeNonempty}
+                opts.Display
+                opts.X
+                opts.Y0
+            end
+
+            prior = obj.applyDummies(Y);            % dummy-augmented prior
+            args  = namedargs2cell(opts);
+            [MN, Summary] = estimate@conjugatebvarm(prior, Y, args{:});
+
+            % Return a plain conjugatebvarm posterior (it is no longer a
+            % Minnesota prior, so do not pretend it is one).
+            Posterior = conjugatebvarm(MN.NumSeries, MN.P, ...
+                Description     = MN.Description, ...
+                SeriesNames     = MN.SeriesNames, ...
+                IncludeConstant = MN.IncludeConstant, ...
+                IncludeTrend    = MN.IncludeTrend, ...
+                NumPredictors   = MN.NumPredictors, ...
+                Mu = MN.Mu, V = MN.V, Omega = MN.Omega, DoF = MN.DoF);
+        end
+
+        function [logML, details] = logMarginalLikelihood(obj, Y)
+            %LOGMARGINALLIKELIHOOD  log p(Y | hyperparameters).
+            %   With dummy observations this is evaluated against the
+            %   dummy-augmented prior using the REAL data only, which equals
+            %   p(Y, dummies) / p(dummies): the dummies' own evidence cancels.
+            %   This is the correct objective for hyperparameter selection;
+            %   feeding the dummy rows in as extra data would instead return
+            %   p(Y, dummies) and bias the tuner.
+            arguments
+                obj
+                Y double {mustBeNonempty}
+            end
+            prior          = obj.applyDummies(Y);
+            [X, YResponse] = obj.regressionMatrices(Y);
+            [logML, details] = minnesotabvarm.conjugateLogML( ...
+                prior.Mu, prior.V, prior.Omega, prior.DoF, X, YResponse, obj.NumSeries);
+        end
+
+        function negLogML = negativeLogMarginalLikelihood(obj, Y)
+            %NEGATIVELOGMARGINALLIKELIHOOD Convenience objective for optimisers.
+            negLogML = -obj.logMarginalLikelihood(Y);
+        end
+
+        function ml = marginalLikelihood(obj, Y)
+            %MARGINALLIKELIHOOD p(Y | hyperparameters).
+            ml = exp(obj.logMarginalLikelihood(Y));
+        end
+
+        function varargout = simulate(obj, Y, opts)
+            %SIMULATE Draw from the (dummy-augmented) prior given data.
+            arguments
+                obj
+                Y double {mustBeNonempty}
+                opts.NumDraws
+                opts.X
+                opts.Y0
+            end
+            prior = obj.applyDummies(Y);
+            args  = namedargs2cell(opts);
+            [varargout{1:nargout}] = simulate@conjugatebvarm(prior, Y, args{:});
+        end
+
+        function varargout = forecast(obj, Y, numperiods)
+            %FORECAST Forecast from the (dummy-augmented) prior given data.
+            arguments
+                obj
+                Y          double {mustBeNonempty}
+                numperiods (1,1) double {mustBeInteger, mustBePositive}
+            end
+            prior = obj.applyDummies(Y);
+            [varargout{1:nargout}] = forecast@conjugatebvarm(prior, numperiods, Y);
+        end
+
+        function varargout = simsmooth(obj, Y, varargin)
+            %SIMSMOOTH Simulation smoother on the (dummy-augmented) prior.
+            arguments
+                obj
+                Y double {mustBeNonempty}
+            end
+            arguments (Repeating)
+                varargin
+            end
+            prior = obj.applyDummies(Y);
+            [varargout{1:nargout}] = simsmooth@conjugatebvarm(prior, Y, varargin{:});
+        end
+
+    end
+
+    % ---- prior construction (data-free) ---------------------------------
+    methods (Access = private)
+
+        function [Mu, V, Omega, DoF] = buildBasePrior(obj)
+            %BUILDBASEPRIOR Litterman moments from ppsi + hyperparameters.
+            %   Coefficient layout matches conjugatebvarm:
+            %     vec([Phi1 ... PhiP  c  delta  B]'), i.e. an m-by-n matrix,
+            %     lag blocks first, then constant, then trend, then predictors.
+            n   = obj.NumSeries;
+            P   = obj.P;
+            mm  = obj.m;
+            psi = obj.ppsi(:);
+
+            DoF = obj.NumSeries + 2; % override the inherited n+10 default
+
+            Omega = diag(psi);
+
+            % Prior mean: own first lag only.
+            MuMat            = zeros(mm, n);
+            MuMat(1:n, :)    = diag(obj.PriorMean);
+            Mu               = MuMat(:);
+
+            % Prior covariance factor V (diagonal).
+            %   The (DoF-n-1) factor makes the *marginal* prior coefficient
+            %   variance equal the Minnesota target independent of DoF, since
+            %   in the conjugate model Var(vec B) = Omega/(DoF-n-1) (x) V.
+            %   Lag block:  V(lag l, regressor j) = c * lambda1^2 / (l^(2*l3) * psi_j)
+            lagScale = obj.lambda1^2 ./ ((1:P)'.^(2*obj.lambda3));   % P-by-1
+            KK       = diag(lagScale);                 % P-by-P
+            Vlag     = kron(KK, diag(1 ./ psi));       % (P*n)-by-(P*n)
+
+            vDiag                 = zeros(mm, 1);
+            vDiag(1:P*n)          = diag(Vlag);
+            vDiag(P*n+1 : mm)     = obj.Vc;            % constant, trend, predictors
+            V = diag(vDiag);
+        end
+
+    end
+
+    % ---- data-dependent pieces (dummies, regression matrices) -----------
+    methods (Access = private)
+
+        function prior = applyDummies(obj, Y)
+            %APPLYDUMMIES Fold any active dummy priors into the base prior.
+            %   Returns a copy of OBJ with Mu/V/Omega/DoF updated via the
+            %   conjugate NIW update. Shared by estimate and the marginal
+            %   likelihood so both always see the identical augmented prior.
+            prior = obj;
+            [XDummy, YDummy] = obj.dummyMatrices(Y);
+            if isempty(YDummy)
+                return
+            end
+            [prior.Mu, prior.V, prior.Omega, prior.DoF] = ...
+                minnesotabvarm.updateNIW(obj.Mu, obj.V, obj.Omega, obj.DoF, ...
+                                         XDummy, YDummy, obj.NumSeries);
+        end
+
+        function [XDummy, YDummy] = dummyMatrices(obj, Y)
+            %DUMMYMATRICES Sum-of-coefficients and initial-observation dummies.
+            %   Built only for finite lambda4 / lambda5 (Inf = off). ybar is
+            %   the mean of the first P observations of each series.
+            obj.validateData(Y);
+            n  = obj.NumSeries;
+            P  = obj.P;
+            mm = obj.m;
+
+            XDummy = zeros(0, mm);
+            YDummy = zeros(0, n);
+            if ~isfinite(obj.lambda4) && ~isfinite(obj.lambda5)
+                return
+            end
+
+            ybar = mean(Y(1:P, :), 1);                 % 1-by-n
+
+            % Sum-of-coefficients: n rows, one per series.
+            if isfinite(obj.lambda4)
+                socY  = diag(ybar) / obj.lambda4;      % n-by-n
+                Xsoc  = zeros(n, mm);
+                for lag = 1:P
+                    cols = (lag-1)*n + (1:n);
+                    Xsoc(:, cols) = socY;
+                end
+                XDummy = [XDummy; Xsoc];
+                YDummy = [YDummy; socY];
+            end
+
+            % Dummy initial observation (co-persistence): a single row.
+            if isfinite(obj.lambda5)
+                dioY  = ybar / obj.lambda5;            % 1-by-n
+                Xdio  = zeros(1, mm);
+                for lag = 1:P
+                    cols = (lag-1)*n + (1:n);
+                    Xdio(:, cols) = dioY;
+                end
+                if obj.IncludeConstant
+                    Xdio(1, P*n + 1) = 1 / obj.lambda5;
+                end
+                % Trend / predictor columns left at 0 (no co-persistence dummy).
+                XDummy = [XDummy; Xdio];
+                YDummy = [YDummy; dioY];
+            end
+        end
+
+        function [X, YResponse] = regressionMatrices(obj, Y)
+            %REGRESSIONMATRICES VAR design matrix consistent with the prior layout.
+            obj.validateData(Y);
+            n      = obj.NumSeries;
+            P      = obj.P;
+            mm     = obj.m;
+            numObs = size(Y, 1);
+            T      = numObs - P;
+
+            X = zeros(T, mm);
+            for lag = 1:P
+                cols = (lag-1)*n + (1:n);
+                X(:, cols) = Y((P + 1 - lag):(numObs - lag), :);
+            end
+            col = P*n;
+            if obj.IncludeConstant
+                col = col + 1;
+                X(:, col) = 1;
+            end
+            if obj.IncludeTrend
+                col = col + 1;
+                X(:, col) = (1:T)';
+            end
+            if obj.NumPredictors > 0
+                error("minnesotabvarm:predictorsUnsupported", ...
+                    ["The marginal likelihood / dummy path needs the exogenous " ...
+                     "regressors, which this prior does not store. Estimate with " ...
+                     "the X name-value argument instead."]);
+            end
+
+            YResponse = Y((P + 1):numObs, :);
+        end
+
+        function validateData(obj, Y)
+            if size(Y, 2) ~= obj.NumSeries
+                error("minnesotabvarm:invalidData", ...
+                    "Y must have %d columns, one per series.", obj.NumSeries);
+            end
+            if size(Y, 1) <= obj.P
+                error("minnesotabvarm:invalidData", ...
+                    "Y must have more rows than the lag order P = %d.", obj.P);
+            end
+        end
+
+    end
+
+    % ---- shared conjugate NIW algebra -----------------------------------
+    methods (Static, Access = private)
+
+        function [MuOut, VOut, OmegaOut, DoFOut] = updateNIW(Mu, V, Omega, DoF, X, Yobs, n)
+            %UPDATENIW One conjugate Normal-Inverse-Wishart update.
+            %   Folds the pseudo-/real observations (X, Yobs) into the prior.
+            %   The same update produces the posterior and the dummy-augmented
+            %   prior; factoring it here keeps a single, tested code path.
+            k      = size(V, 1);
+            B0     = reshape(Mu, k, n);
+            V0inv  = V \ eye(k);
+            prec   = V0inv + X'*X;
+            B      = prec \ (V0inv*B0 + X'*Yobs);
+            Vnew   = prec \ eye(k);
+            OmegaN = Omega + Yobs'*Yobs + B0'*V0inv*B0 - B'*prec*B;
+
+            MuOut    = B(:);
+            VOut     = (Vnew + Vnew')/2;
+            OmegaOut = (OmegaN + OmegaN')/2;
+            DoFOut   = DoF + size(Yobs, 1);
+        end
+
+        function [logML, details] = conjugateLogML(Mu, V, Omega, DoF, X, Yobs, n)
+            %CONJUGATELOGML Analytic log marginal likelihood for the conjugate VAR.
+            %   Evaluated against the supplied prior (Mu/V/Omega/DoF), which is
+            %   expected to be the dummy-AUGMENTED prior, using the real data
+            %   (X, Yobs) only.
+            k        = size(V, 1);
+            numObs   = size(Yobs, 1);
+            priorDoF = DoF;
+            postDoF  = DoF + numObs;
+
+            B0     = reshape(Mu, k, n);
+            V0inv  = V \ eye(k);
+            prec   = V0inv + X'*X;
+            Bn     = prec \ (V0inv*B0 + X'*Yobs);
+            Vn     = prec \ eye(k);
+            OmegaN = Omega + Yobs'*Yobs + B0'*V0inv*B0 - Bn'*prec*Bn;
+            OmegaN = (OmegaN + OmegaN')/2;
+
+            logML = -0.5*numObs*n*log(pi) ...
+                + minnesotabvarm.logMvGamma(0.5*postDoF,  n) ...
+                - minnesotabvarm.logMvGamma(0.5*priorDoF, n) ...
+                + 0.5*priorDoF*minnesotabvarm.logDetPD(Omega) ...
+                - 0.5*postDoF *minnesotabvarm.logDetPD(OmegaN) ...
+                + 0.5*n*(minnesotabvarm.logDetPD(Vn) - minnesotabvarm.logDetPD(V));
+
+            if nargout > 1
+                details = struct( ...
+                    "NumObservations", numObs, ...
+                    "PriorDoF",        priorDoF, ...
+                    "PosteriorDoF",    postDoF, ...
+                    "PosteriorMu",     Bn(:), ...
+                    "PosteriorV",      (Vn + Vn')/2, ...
+                    "PosteriorOmega",  OmegaN);
+            end
+        end
+
+        function value = logDetPD(A)
+            %LOGDETPD Log-determinant of a symmetric positive-definite matrix.
+            R     = chol((A + A')/2);
+            value = 2*sum(log(diag(R)));
+        end
+
+        function value = logMvGamma(a, dimension)
+            %LOGMVGAMMA Log of the multivariate gamma function.
+            j     = 1:dimension;
+            value = dimension*(dimension - 1)*0.25*log(pi) ...
+                  + sum(gammaln(a + 0.5*(1 - j)));
+        end
+
+    end
+
+    % ---- display ---------------------------------------------------------
+    methods (Access = protected)
+
+        function displayScalarObject(obj)
+            disp(matlab.mixin.CustomDisplay.getSimpleHeader(obj));
+
+            base  = {'NumSeries','P','ppsi','lambda1','lambda3','Vc', ...
+                     'PriorMean'};
+            % Only show dummy tightnesses when they are actually active.
+            if isfinite(obj.lambda4), base{end+1} = 'lambda4'; end
+            if isfinite(obj.lambda5), base{end+1} = 'lambda5'; end
+
+            group = matlab.mixin.util.PropertyGroup(base);
+            matlab.mixin.CustomDisplay.displayPropertyGroups(obj, group);
+        end
+
+    end
+
+end
