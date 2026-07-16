@@ -3,62 +3,159 @@ classdef minnesotaSpec
     %
     %   A lightweight value object that holds the Minnesota hyperparameters
     %   and knows how to (a) materialise a concrete MINNESOTABVARM from itself
-    %   plus a residual-variance vector, and (b) pack/unpack a subset of its
-    %   fields to/from an unconstrained optimiser vector.
+    %   plus a residual-variance vector, and (b) pack/unpack its FREE fields
+    %   to/from a plain bounded vector for FMINCON.
+    %
+    %   Scalar-or-bounds convention
+    %   ----------------------------
+    %   Each of lambda1/lambda3/lambda4/lambda5 is EITHER:
+    %     * a scalar  -> FIXED at that value (not optimised), or
+    %     * a 2-element [lower upper] -> FREE, optimised within those bounds.
+    %   This mirrors the classic GLP-style hyperparameter-search interface:
+    %   pass a number to hold it fixed, pass a range to tune it. Which fields
+    %   are free is therefore implicit in the spec itself - no separate
+    %   FreeParams list to keep in sync.
     %
     %   Separation of concerns
     %   ----------------------
-    %   * The spec is the mutable RECIPE. It owns the hyperparameter vocabulary,
-    %     the defaults, the positivity reparametrisation (log-space, in pack/
-    %     unpack), and the build step. It holds no data and no moments.
+    %   * The spec is the mutable RECIPE: hyperparameter vocabulary, defaults,
+    %     the free/fixed convention above, and the build step. It holds no
+    %     data and no moments, and it never carries a per-series psi (psi's
+    %     dimension depends on NumSeries, which the spec deliberately does not
+    %     know - see the GLP wrapper for how a psi band is optimised
+    %     alongside the spec's free lambdas).
     %   * MINNESOTABVARM is the materialised RESULT. build() copies the
-    %     hyperparameter VALUES into it (value semantics), so mutating the spec
-    %     afterwards never disturbs an already-built model - no shared state.
-    %   * logHyperprior is also a method here, not on minnesotabvarm: it is a
-    %     belief about the lambdas themselves (independent of any data or
-    %     built model), needs only the spec's scalar values, and requires no
-    %     build step to evaluate - so it belongs with pack/unpack, not bolted
-    %     onto the materialised prior.
-    %   * A GLP-style optimiser is the third layer: it varies a subset of the
-    %     spec's fields (pack/unpack), rebuilds cheaply for each candidate, and
-    %     evaluates minnesotabvarm.negativeLogMarginalLikelihood - optionally
-    %     minus spec.logHyperprior for a MAP objective. The optimiser owns none
-    %     of the algebra; it only chooses lambdas.
+    %     hyperparameter VALUES into it, so mutating the spec afterwards never
+    %     disturbs an already-built model - no shared state.
+    %   * logHyperprior is a method here (not on minnesotabvarm): it is a
+    %     belief about the lambdas themselves, needs only the spec's scalar
+    %     values, and requires no build step to evaluate.
+    %   * A GLP-style optimiser is the third layer (see GLPOPTIMIZEMINNESOTA):
+    %     it reads the spec's free fields and bounds via pack(), lets FMINCON
+    %     search them (plus, separately, a psi band), and rebuilds via
+    %     build()/unpack() at each candidate point.
     %
-    %   Off switches: lambda4 = lambda5 = Inf disables the sum-of-coefficients
-    %   and dummy-initial-observation priors respectively (see MINNESOTABVARM).
+    %   Off switches: lambda4 = lambda5 = Inf (as a FIXED scalar) disables the
+    %   sum-of-coefficients and dummy-initial-observation priors respectively
+    %   (see MINNESOTABVARM). Inf is not a valid bound endpoint.
+    %
+    %   Note on lambda2: there is no separate cross-variable tightness field.
+    %   Under the shared-diagonal-V / diag(psi) conjugate structure this class
+    %   uses - algebraically identical to the dummy-observation construction
+    %   this design was checked against - the implied coefficient variance is
+    %   lambda1^2/l^(2*lambda3) (own) and lambda1^2/l^(2*lambda3) * (psi_j/psi_i)
+    %   (cross): both governed by the SAME lambda1/lambda3, with only the
+    %   psi ratio distinguishing them. There is no free parameter left over to
+    %   call lambda2; it is not omitted for convenience, it does not exist
+    %   under this structure.
 
     properties
-        lambda1   (1,1) double {mustBePositive}    = 0.2   % overall tightness
-        lambda3   (1,1) double {mustBeNonnegative} = 1     % lag decay
-        lambda4   (1,1) double {mustBePositive}    = Inf   % sum-of-coeff (Inf = off)
-        lambda5   (1,1) double {mustBePositive}    = Inf   % dummy-init-obs (Inf = off)
-        Vc        (1,1) double {mustBePositive}    = 1e4   % constant / trend variance
-        PriorMean (1,:) double = []                        % own first-lag mean ([] -> ones)
+        lambda1   (1,:) double {mustBeScalarOrBounds} = 0.2   % overall tightness
+        lambda3   (1,:) double {mustBeScalarOrBounds} = 1     % lag decay
+        lambda4   (1,:) double {mustBeScalarOrBounds} = Inf   % sum-of-coeff (Inf = off)
+        lambda5   (1,:) double {mustBeScalarOrBounds} = Inf   % dummy-init-obs (Inf = off)
+        Vc        (1,1) double {mustBePositive}       = 1e4   % constant / trend variance
+        PriorMean (1,:) double = []                           % own first-lag mean ([] -> ones)
+    end
+
+    properties (Constant, Access = private)
+        HyperparamNames = ["lambda1","lambda3","lambda4","lambda5"]
     end
 
     methods
 
         function spec = minnesotaSpec(nvp)
             arguments
-                nvp.lambda1   (1,1) double {mustBePositive}
-                nvp.lambda3   (1,1) double {mustBeNonnegative}
-                nvp.lambda4   (1,1) double {mustBePositive}
-                nvp.lambda5   (1,1) double {mustBePositive}
-                nvp.Vc        (1,1) double {mustBePositive}
+                nvp.lambda1   (1,:) double
+                nvp.lambda3   (1,:) double
+                nvp.lambda4   (1,:) double
+                nvp.lambda5   (1,:) double
+                nvp.Vc        (1,1) double
                 nvp.PriorMean (1,:) double
             end
             % Assign only the fields the caller actually provided; the rest
-            % keep their property defaults above.
+            % keep their property defaults above. Property validators enforce
+            % the scalar-or-bounds convention on assignment.
             for f = string(fieldnames(nvp))'
                 spec.(f) = nvp.(f);
             end
         end
 
+        function tf = isFree(spec, name)
+            %ISFREE True if the named hyperparameter is a 2-element bound.
+            arguments
+                spec (1,1) minnesotaSpec
+                name (1,1) string
+            end
+            tf = numel(spec.(name)) == 2;
+        end
+
+        function names = freeFields(spec)
+            %FREEFIELDS Names of the currently-free hyperparameters, in a
+            %   fixed canonical order (lambda1, lambda3, lambda4, lambda5).
+            arguments
+                spec (1,1) minnesotaSpec
+            end
+            mask  = arrayfun(@(n) spec.isFree(n), minnesotaSpec.HyperparamNames);
+            names = minnesotaSpec.HyperparamNames(mask);
+        end
+
+        function tf = isResolved(spec)
+            %ISRESOLVED True if every hyperparameter is fixed (scalar).
+            %   build() and logHyperprior() require a resolved spec - neither
+            %   can evaluate against a range.
+            arguments
+                spec (1,1) minnesotaSpec
+            end
+            tf = isempty(spec.freeFields());
+        end
+
+        function [x0, lb, ub, names] = pack(spec)
+            %PACK Bounds and a starting point for every free hyperparameter.
+            %   x0 uses the geometric mean of each [lower upper] bound, the
+            %   natural default for a positive, typically-log-scaled
+            %   hyperparameter (e.g. a symmetric multiplicative band around 1
+            %   has geometric-mean midpoint exactly 1).
+            arguments
+                spec (1,1) minnesotaSpec
+            end
+            names = spec.freeFields();
+            n     = numel(names);
+            x0 = zeros(1, n); lb = zeros(1, n); ub = zeros(1, n);
+            for i = 1:n
+                b     = spec.(names(i));
+                lb(i) = b(1);
+                ub(i) = b(2);
+                x0(i) = sqrt(b(1)*b(2));
+            end
+        end
+
+        function spec = unpack(spec, x, names)
+            %UNPACK Write point values back into the named fields.
+            %   Returns a modified COPY (value semantics), leaving the
+            %   caller's spec untouched. Each field becomes FIXED (scalar) at
+            %   the supplied value, regardless of whether it was free before -
+            %   this is how a candidate point during optimisation becomes a
+            %   concrete, buildable spec.
+            arguments
+                spec  (1,1) minnesotaSpec
+                x     (1,:) double
+                names (1,:) string
+            end
+            if numel(x) ~= numel(names)
+                error("minnesotaSpec:unpack:sizeMismatch", ...
+                    "x has %d elements but names has %d.", numel(x), numel(names));
+            end
+            for i = 1:numel(names)
+                spec.(names(i)) = x(i);
+            end
+        end
+
         function mdl = build(spec, numseries, numlags, ppsi, opts)
-            %BUILD Materialise a MINNESOTABVARM from this spec and a ppsi vector.
-            %   ppsi is taken precomputed (compute it once, outside any tuning
-            %   loop). opts pass through to the conjugate superclass layout.
+            %BUILD Materialise a MINNESOTABVARM from this (resolved) spec.
+            %   ppsi is taken precomputed (compute it once, outside any
+            %   tuning loop). Errors if the spec still has free fields - build
+            %   needs concrete numbers, not ranges.
             arguments
                 spec       (1,1) minnesotaSpec
                 numseries  (1,1) double {mustBeInteger, mustBePositive}
@@ -70,9 +167,13 @@ classdef minnesotaSpec
                 opts.SeriesNames
                 opts.Description
             end
+            if ~spec.isResolved()
+                error("minnesotaSpec:build:notResolved", ...
+                    "Cannot build: %s still free (2-element bound). Call unpack " + ...
+                    "with a candidate point first.", strjoin(spec.freeFields(), ", "));
+            end
             args = namedargs2cell(opts);
-            mdl = minnesotabvarm(numseries, numlags, ...
-                args{:}, ...
+            mdl = minnesotabvarm(numseries, numlags, args{:}, ...
                 ppsi      = ppsi, ...
                 lambda1   = spec.lambda1, ...
                 lambda3   = spec.lambda3, ...
@@ -80,46 +181,6 @@ classdef minnesotaSpec
                 lambda5   = spec.lambda5, ...
                 Vc        = spec.Vc, ...
                 PriorMean = spec.PriorMean);
-        end
-
-        function theta = pack(spec, freeParams)
-            %PACK Map the named free hyperparameters to an unconstrained vector.
-            %   Log-space keeps them positive for an unconstrained optimiser
-            %   (fminsearch/fminunc). Only pass ACTIVE (finite) parameters as
-            %   free - an Inf here would produce Inf in theta.
-            arguments
-                spec       (1,1) minnesotaSpec
-                freeParams (1,:) string
-            end
-            theta = zeros(1, numel(freeParams));
-            for i = 1:numel(freeParams)
-                value = spec.(freeParams(i));
-                if ~isfinite(value) || value <= 0
-                    error("minnesotaSpec:pack:notOptimisable", ...
-                        "Free parameter '%s' must be finite and positive; got %g.", ...
-                        freeParams(i), value);
-                end
-                theta(i) = log(value);
-            end
-        end
-
-        function spec = unpack(spec, theta, freeParams)
-            %UNPACK Write an optimiser vector back into the named free fields.
-            %   Returns a modified COPY (value semantics), leaving the caller's
-            %   spec untouched - so each optimiser probe is independent.
-            arguments
-                spec       (1,1) minnesotaSpec
-                theta      (1,:) double
-                freeParams (1,:) string
-            end
-            if numel(theta) ~= numel(freeParams)
-                error("minnesotaSpec:unpack:sizeMismatch", ...
-                    "theta has %d elements but freeParams has %d.", ...
-                    numel(theta), numel(freeParams));
-            end
-            for i = 1:numel(freeParams)
-                spec.(freeParams(i)) = exp(theta(i));
-            end
         end
 
         function lp = logHyperprior(spec, priorcoef, ppsi)
@@ -130,8 +191,8 @@ classdef minnesotaSpec
             %   Returns the POSITIVE log density log p(lambda1, lambda4,
             %   lambda5, [psi]). Needs only the spec's scalar hyperparameter
             %   values - no build step, no data - which is why it lives here
-            %   rather than on minnesotabvarm: evaluating it should not require
-            %   materialising a model.
+            %   rather than on minnesotabvarm. Errors if the spec still has
+            %   free fields (a density needs a point, not a range).
             %
             %   This is the piece that turns a marginal-likelihood objective
             %   into a MAP (posterior-mode) objective. Compose them in the
@@ -155,6 +216,12 @@ classdef minnesotaSpec
                 spec      (1,1) minnesotaSpec
                 priorcoef (1,1) struct
                 ppsi      (1,:) double = []
+            end
+
+            if ~spec.isResolved()
+                error("minnesotaSpec:logHyperprior:notResolved", ...
+                    "Cannot evaluate a density on a range: %s still free.", ...
+                    strjoin(spec.freeFields(), ", "));
             end
 
             lp = 0;
@@ -196,4 +263,29 @@ classdef minnesotaSpec
         end
 
     end
+end
+
+function mustBeScalarOrBounds(x)
+%MUSTBESCALARORBOUNDS Validator: x is a positive scalar (fixed value, Inf
+%   allowed as an "off" marker) or a finite 2-element [lower upper] with
+%   lower < upper (a free bound for optimisation).
+if numel(x) ~= 1 && numel(x) ~= 2
+    error("minnesotaSpec:invalidHyperparam", ...
+        "Value must be a scalar (fixed) or a 2-element [lower upper] bound " + ...
+        "(free); got %d elements.", numel(x));
+end
+if any(x <= 0)
+    error("minnesotaSpec:invalidHyperparam", ...
+        "Value must be positive (Inf permitted as a scalar 'off' marker).");
+end
+if numel(x) == 2
+    if any(~isfinite(x))
+        error("minnesotaSpec:invalidHyperparam", ...
+            "Bounds [lower upper] must both be finite.");
+    end
+    if x(1) >= x(2)
+        error("minnesotaSpec:invalidHyperparam", ...
+            "Bounds must satisfy lower < upper.");
+    end
+end
 end

@@ -46,5 +46,8 @@ examples/MountfordUhlig2009/*
 !examples/SimsZha1999/
 examples/SimsZha1999/*
 !examples/SimsZha1999/main.m
+!examples/glp2012/
+examples/glp2012/*
+!examples/glp2012/main.m
 
 public/
