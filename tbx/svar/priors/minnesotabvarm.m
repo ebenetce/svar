@@ -49,12 +49,11 @@ classdef minnesotabvarm < conjugatebvarm & matlab.mixin.CustomDisplay
         ppsi      (1,:) double     % per-series residual variances (the prior scale)
         lambda1   (1,1) double     % overall tightness (SelfLag)
         lambda3   (1,1) double     % lag-decay exponent (Decay)
-        lambda2   (1,1) double = 1 % cross-variable relative tightness 
+        lambda2   (1,1) double = 1 % cross-variable relative tightness (pinned to 1)
         lambda4   (1,1) double     % sum-of-coefficients tightness (Inf = off)
         lambda5   (1,1) double     % dummy-initial-observation tightness (Inf = off)
         Vc        (1,1) double     % prior variance of constant / trend
         PriorMean (1,:) double     % prior mean of own first lag, per series (Center)
-        DoFOffset (1,1) double     % IW degrees of freedom = NumSeries + DoFOffset
     end
 
     properties (Dependent, SetAccess = private, Hidden)
@@ -98,9 +97,9 @@ classdef minnesotabvarm < conjugatebvarm & matlab.mixin.CustomDisplay
             args = namedargs2cell(nvp2);
             obj  = obj@conjugatebvarm(numseries, numlags, args{:});
 
-            % Prior mean of the own first lag: default 1 (random-walk), then
-            % zero out any series flagged stationary. An explicit PriorMean
-            % overrides the default entirely.
+            % Prior mean of the own first lag: default 1 (random-walk). An
+            % explicit PriorMean overrides the default entirely (set 0 for
+            % stationary / differenced series).
             if isempty(nvp.PriorMean)
                 priorMean = ones(1, numseries);
             else
@@ -171,7 +170,9 @@ classdef minnesotabvarm < conjugatebvarm & matlab.mixin.CustomDisplay
             %   p(Y, dummies) / p(dummies): the dummies' own evidence cancels.
             %   This is the correct objective for hyperparameter selection;
             %   feeding the dummy rows in as extra data would instead return
-            %   p(Y, dummies) and bias the tuner.
+            %   p(Y, dummies) and bias the tuner. This returns the PURE
+            %   marginal likelihood - any hyperprior on the lambdas belongs in
+            %   the optimiser layer (see logHyperprior), not here.
             arguments
                 obj
                 Y double {mustBeNonempty}
@@ -245,7 +246,10 @@ classdef minnesotabvarm < conjugatebvarm & matlab.mixin.CustomDisplay
             mm  = obj.m;
             psi = obj.ppsi(:);
 
-            DoF = obj.NumSeries + 2; % override the inherited n+10 default
+            % DoF fixed at n+2: the minimal proper IW with a defined mean, the
+            % standard Minnesota / GLP choice. Overrides the inherited n+10
+            % conjugatebvarm default, which V (below) is NOT built for.
+            DoF = n + 2;
 
             Omega = diag(psi);
 
@@ -255,10 +259,10 @@ classdef minnesotabvarm < conjugatebvarm & matlab.mixin.CustomDisplay
             Mu               = MuMat(:);
 
             % Prior covariance factor V (diagonal).
-            %   The (DoF-n-1) factor makes the *marginal* prior coefficient
-            %   variance equal the Minnesota target independent of DoF, since
-            %   in the conjugate model Var(vec B) = Omega/(DoF-n-1) (x) V.
-            %   Lag block:  V(lag l, regressor j) = c * lambda1^2 / (l^(2*l3) * psi_j)
+            %   With DoF = n+2 the (DoF-n-1) scaling is 1 by construction, so
+            %   the marginal prior coefficient variance equals the Minnesota
+            %   target directly: Var(vec B) = Omega/(DoF-n-1) (x) V = Omega (x) V.
+            %   Lag block:  V(lag l, regressor j) = lambda1^2 / (l^(2*l3) * psi_j).
             lagScale = obj.lambda1^2 ./ ((1:P)'.^(2*obj.lambda3));   % P-by-1
             KK       = diag(lagScale);                 % P-by-P
             Vlag     = kron(KK, diag(1 ./ psi));       % (P*n)-by-(P*n)
@@ -405,44 +409,81 @@ classdef minnesotabvarm < conjugatebvarm & matlab.mixin.CustomDisplay
 
         function [logML, details] = conjugateLogML(Mu, V, Omega, DoF, X, Yobs, n)
             %CONJUGATELOGML Analytic log marginal likelihood for the conjugate VAR.
-            %   Evaluated against the supplied prior (Mu/V/Omega/DoF), which is
-            %   expected to be the dummy-AUGMENTED prior, using the real data
-            %   (X, Yobs) only.
+            %   Evaluated against the supplied (dummy-augmented) prior using the
+            %   real data (X, Yobs) only.
+            %
+            %   Numerics: uses the stable ratio-of-determinants ("eig + 1")
+            %   form. The two log-det differences that appear in the marginal
+            %   likelihood are computed as log det(I + M) with M >= 0, so they
+            %   stay finite even when the prior V or Omega is near-singular -
+            %   which a hyperparameter optimiser will inevitably probe. The
+            %   whole computation is guarded: any breakdown (e.g. chol of a
+            %   collapsed prior) returns logML = -Inf, which an optimiser reads
+            %   as "this hyperparameter set is very bad" rather than throwing.
             k        = size(V, 1);
             numObs   = size(Yobs, 1);
             priorDoF = DoF;
             postDoF  = DoF + numObs;
 
-            B0     = reshape(Mu, k, n);
-            V0inv  = V \ eye(k);
-            prec   = V0inv + X'*X;
-            Bn     = prec \ (V0inv*B0 + X'*Yobs);
-            Vn     = prec \ eye(k);
-            OmegaN = Omega + Yobs'*Yobs + B0'*V0inv*B0 - Bn'*prec*Bn;
-            OmegaN = (OmegaN + OmegaN')/2;
+            logML   = -Inf;
+            details = struct();
 
-            logML = -0.5*numObs*n*log(pi) ...
-                + minnesotabvarm.logMvGamma(0.5*postDoF,  n) ...
-                - minnesotabvarm.logMvGamma(0.5*priorDoF, n) ...
-                + 0.5*priorDoF*minnesotabvarm.logDetPD(Omega) ...
-                - 0.5*postDoF *minnesotabvarm.logDetPD(OmegaN) ...
-                + 0.5*n*(minnesotabvarm.logDetPD(Vn) - minnesotabvarm.logDetPD(V));
+            try
+                B0    = reshape(Mu, k, n);
+                V0inv = V \ eye(k);
+                prec  = V0inv + X'*X;
+                Bn    = prec \ (V0inv*B0 + X'*Yobs);
 
-            if nargout > 1
-                details = struct( ...
-                    "NumObservations", numObs, ...
-                    "PriorDoF",        priorDoF, ...
-                    "PosteriorDoF",    postDoF, ...
-                    "PosteriorMu",     Bn(:), ...
-                    "PosteriorV",      (Vn + Vn')/2, ...
-                    "PosteriorOmega",  OmegaN);
+                % Posterior scale as prior scale plus a manifestly PSD
+                % increment (residual SS at the posterior mean + prior-mean
+                % shift). Avoids the cancellation-prone
+                %   Omega + Y'Y + B0'V0inv B0 - Bn'prec Bn.
+                resid = Yobs - X*Bn;
+                shift = Bn - B0;
+                incr  = resid'*resid + shift'*(V0inv*shift);
+                incr  = (incr + incr')/2;                       % PSD
+
+                % logdet(OmegaN) - logdet(Omega) = sum log( eig(inv(Omega)*incr) + 1 ).
+                % Lo Lo' = Omega  =>  bbb = Lo^{-1} incr Lo^{-T} is symmetric
+                % with eig(bbb) = eig(inv(Omega) incr) >= 0.
+                Lo   = chol((Omega + Omega')/2, 'lower');
+                bbb  = Lo \ incr / Lo';
+                eb   = real(eig((bbb + bbb')/2));
+                eb(eb < 0) = 0;
+                sumOmegaRatio = sum(log(eb + 1));
+                logDetOmega0  = 2*sum(log(diag(Lo)));           % reuse the factor
+
+                % logdet(Vn) - logdet(V0) = -sum log( eig(X'X * V0) + 1 ).
+                % D D' = V0  =>  aaa = D'(X'X)D is symmetric, eig = eig(X'X V0).
+                D    = chol((V + V')/2, 'lower');
+                aaa  = D'*(X'*X)*D;
+                ea   = real(eig((aaa + aaa')/2));
+                ea(ea < 0) = 0;
+                sumVRatio = sum(log(ea + 1));
+
+                logML = -0.5*numObs*n*log(pi) ...
+                    + minnesotabvarm.logMvGamma(0.5*postDoF,  n) ...
+                    - minnesotabvarm.logMvGamma(0.5*priorDoF, n) ...
+                    - 0.5*numObs*logDetOmega0 ...
+                    - 0.5*postDoF*sumOmegaRatio ...
+                    - 0.5*n*sumVRatio;
+
+                if nargout > 1
+                    Vn     = prec \ eye(k);
+                    OmegaN = (Omega + incr + (Omega + incr)')/2;
+                    details = struct( ...
+                        "NumObservations", numObs, ...
+                        "PriorDoF",        priorDoF, ...
+                        "PosteriorDoF",    postDoF, ...
+                        "PosteriorMu",     Bn(:), ...
+                        "PosteriorV",      (Vn + Vn')/2, ...
+                        "PosteriorOmega",  OmegaN);
+                end
+            catch
+                logML   = -Inf;
+                details = struct("NumObservations", numObs, ...
+                                 "PriorDoF", priorDoF, "PosteriorDoF", postDoF);
             end
-        end
-
-        function value = logDetPD(A)
-            %LOGDETPD Log-determinant of a symmetric positive-definite matrix.
-            R     = chol((A + A')/2);
-            value = 2*sum(log(diag(R)));
         end
 
         function value = logMvGamma(a, dimension)
@@ -460,8 +501,7 @@ classdef minnesotabvarm < conjugatebvarm & matlab.mixin.CustomDisplay
         function displayScalarObject(obj)
             disp(matlab.mixin.CustomDisplay.getSimpleHeader(obj));
 
-            base  = {'NumSeries','P','ppsi','lambda1','lambda3','Vc', ...
-                     'PriorMean'};
+            base  = {'NumSeries','P','ppsi','lambda1','lambda3','Vc','PriorMean'};
             % Only show dummy tightnesses when they are actually active.
             if isfinite(obj.lambda4), base{end+1} = 'lambda4'; end
             if isfinite(obj.lambda5), base{end+1} = 'lambda5'; end
