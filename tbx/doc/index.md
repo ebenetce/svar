@@ -32,6 +32,8 @@ workflows that start from `conjugatebvarm` or `varm` models.
 
 * [svar.irf](svar.irf.md) - Compute structural impulse responses from a VAR
   model and impact matrix.
+* [svar.fevd](svar.fevd.md) - Compute forecast error variance decompositions
+  from structural impulse responses.
 * [svar.companionMatrix](svar.companionMatrix.md) - Build the VAR companion
   matrix.
 * [svar.companionPower](svar.companionPower.md) - Compute moving-average blocks

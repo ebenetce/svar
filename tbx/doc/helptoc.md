@@ -10,5 +10,6 @@
 * [Convert BVAR to VARM](bvar2var.md)
 * [Positive-definite log determinant](logDetPD.md)
 * [Impulse responses](svar.irf.md)
+* [Forecast error variance decomposition](svar.fevd.md)
 * [Companion matrix](svar.companionMatrix.md)
 * [Companion powers](svar.companionPower.md)
