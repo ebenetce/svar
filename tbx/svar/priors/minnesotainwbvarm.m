@@ -98,11 +98,11 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
             end
 
             if ~isfield(nvp, "ppsi") || isempty(nvp.ppsi)
-                error("minnesotaINWBvarm:needPpsi", ...
+                error("inwbvarm:needPpsi", ...
                     "ppsi (one residual variance per series) is required.");
             end
             if numel(nvp.ppsi) ~= numseries
-                error("minnesotaINWBvarm:ppsiSize", ...
+                error("inwbvarm:ppsiSize", ...
                     "ppsi must have %d elements, one per series.", numseries);
             end
 
@@ -113,7 +113,7 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
                 priorMean = ones(1, numseries);
             else
                 if numel(nvp.PriorMean) ~= numseries
-                    error("minnesotaINWBvarm:priorMeanSize", ...
+                    error("inwbvarm:priorMeanSize", ...
                         "PriorMean must have %d elements, one per series.", numseries);
                 end
                 priorMean = reshape(nvp.PriorMean, 1, numseries);
@@ -127,30 +127,6 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
             obj.PriorMean = priorMean;
 
             [obj.Mu, obj.V, obj.Omega, obj.DoF] = obj.buildIndependentPrior();
-        end
-
-    end
-
-    % ---- public API -------------------------------------------------------
-    methods
-
-        function [Posterior, Summary] = estimate(obj, Y, opts)
-            %ESTIMATE Gibbs-sampled INW posterior. Set rng() before calling.
-            %   Thin passthrough to SEMICONJUGATEBVARM's sampler - no dummy
-            %   augmentation (see class header). Returns an EMPIRICALBVARM of
-            %   posterior draws, not an analytic posterior.
-            arguments
-                obj
-                Y double {mustBeNonempty}
-                opts.Display
-                opts.NumDraws
-                opts.BurnIn
-                opts.Thin
-                opts.X
-                opts.Y0
-            end
-            args = namedargs2cell(opts);
-            [Posterior, Summary] = estimate@semiconjugatebvarm(obj, Y, args{:});
         end
 
     end
@@ -172,7 +148,7 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
 
             DoF   = n + 2;              % independent IW prior on Sigma, same
             Omega = diag(psi);          % minimal-informative convention as
-                                         % MINNESOTABVARM (see its header).
+            % MINNESOTABVARM (see its header).
 
             MuMat         = zeros(mm, n);
             MuMat(1:n, :) = diag(obj.PriorMean);
@@ -215,7 +191,7 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
         function displayScalarObject(obj)
             disp(matlab.mixin.CustomDisplay.getSimpleHeader(obj));
             base  = {'NumSeries','P','ppsi','lambda1','lambda2','lambda3', ...
-                     'Vc','PriorMean'};
+                'Vc','PriorMean'};
             group = matlab.mixin.util.PropertyGroup(base);
             matlab.mixin.CustomDisplay.displayPropertyGroups(obj, group);
         end

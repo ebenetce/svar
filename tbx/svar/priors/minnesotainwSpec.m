@@ -1,6 +1,6 @@
 classdef minnesotainwSpec
-    %MINNESOTAINWSPEC Hyperparameter recipe for the Independent Normal-Wishart
-    %   Minnesota prior (see MINNESOTAINWBVARM; Kadiyala & Karlsson, 1997).
+    %minnesotainwSpec Hyperparameter recipe for the Independent Normal-Wishart
+    %   Minnesota prior (see INWBVARM; Kadiyala & Karlsson, 1997).
     %
     %   Sibling to MINNESOTASPEC, not a subclass of it - the two feed
     %   different model classes with different hyperparameter sets and,
@@ -8,7 +8,7 @@ classdef minnesotainwSpec
     %     * MINNESOTASPEC       -> MINNESOTABVARM      -> analytic marginal
     %       likelihood -> GLPOPTIMIZEMINNESOTA (fmincon over a closed-form
     %       objective).
-    %     * MINNESOTAINWSPEC    -> MINNESOTAINWBVARM    -> Gibbs draws, NO
+    %     * INWSPEC    -> INWBVARM    -> Gibbs draws, NO
     %       closed-form marginal likelihood -> hyperparameter selection needs
     %       an out-of-sample criterion (e.g. rolling-window forecast loss
     %       over a grid/search in lambda2), which is not implemented here.
@@ -58,7 +58,7 @@ classdef minnesotainwSpec
         function tf = isFree(spec, name)
             %ISFREE True if the named hyperparameter is a 2-element bound.
             arguments
-                spec (1,1) minnesotaINWSpec
+                spec (1,1) minnesotainwSpec
                 name (1,1) string
             end
             tf = numel(spec.(name)) == 2;
@@ -68,16 +68,16 @@ classdef minnesotainwSpec
             %FREEFIELDS Names of the currently-free hyperparameters, in a
             %   fixed canonical order (lambda1, lambda2, lambda3).
             arguments
-                spec (1,1) minnesotaINWSpec
+                spec (1,1) minnesotainwSpec
             end
-            mask  = arrayfun(@(n) spec.isFree(n), minnesotaINWSpec.HyperparamNames);
-            names = minnesotaINWSpec.HyperparamNames(mask);
+            mask  = arrayfun(@(n) spec.isFree(n), minnesotainwSpec.HyperparamNames);
+            names = minnesotainwSpec.HyperparamNames(mask);
         end
 
         function tf = isResolved(spec)
             %ISRESOLVED True if every hyperparameter is fixed (scalar).
             arguments
-                spec (1,1) minnesotaINWSpec
+                spec (1,1) minnesotainwSpec
             end
             tf = isempty(spec.freeFields());
         end
@@ -87,7 +87,7 @@ classdef minnesotainwSpec
             %   x0 uses the geometric mean of each [lower upper] bound - see
             %   MINNESOTASPEC.pack for the same convention.
             arguments
-                spec (1,1) minnesotaINWSpec
+                spec (1,1) minnesotainwSpec
             end
             names = spec.freeFields();
             n     = numel(names);
@@ -104,12 +104,12 @@ classdef minnesotainwSpec
             %UNPACK Write point values back into the named fields (returns a
             %   modified COPY - value semantics, as in MINNESOTASPEC.unpack).
             arguments
-                spec  (1,1) minnesotaINWSpec
+                spec  (1,1) minnesotainwSpec
                 x     (1,:) double
                 names (1,:) string
             end
             if numel(x) ~= numel(names)
-                error("minnesotaINWSpec:unpack:sizeMismatch", ...
+                error("minnesotainwSpec:unpack:sizeMismatch", ...
                     "x has %d elements but names has %d.", numel(x), numel(names));
             end
             for i = 1:numel(names)
@@ -122,7 +122,7 @@ classdef minnesotainwSpec
             %   ppsi is taken precomputed. Errors if the spec still has free
             %   fields - build needs concrete numbers, not ranges.
             arguments
-                spec       (1,1) minnesotaINWSpec
+                spec       (1,1) minnesotainwSpec
                 numseries  (1,1) double {mustBeInteger, mustBePositive}
                 numlags    (1,1) double {mustBeInteger, mustBePositive}
                 ppsi       (1,:) double {mustBePositive}
@@ -133,12 +133,12 @@ classdef minnesotainwSpec
                 opts.Description
             end
             if ~spec.isResolved()
-                error("minnesotaINWSpec:build:notResolved", ...
+                error("minnesotainwSpec:build:notResolved", ...
                     "Cannot build: %s still free (2-element bound). Call unpack " + ...
                     "with a candidate point first.", strjoin(spec.freeFields(), ", "));
             end
             args = namedargs2cell(opts);
-            mdl = minnesotaINWBvarm(numseries, numlags, args{:}, ...
+            mdl = minnesotainwSpec(numseries, numlags, args{:}, ...
                 ppsi      = ppsi, ...
                 lambda1   = spec.lambda1, ...
                 lambda2   = spec.lambda2, ...

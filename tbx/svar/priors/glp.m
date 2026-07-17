@@ -1,13 +1,13 @@
-function [mdl, info] = glp(numseries, numlags, Y, nvp)
-%GLPOPTIMIZEMINNESOTA Tune Minnesota hyperparameters by (log) marginal likelihood.
-%   mdl = GLPOPTIMIZEMINNESOTA(numseries, numlags, Y) tunes whichever fields
+function [mdl, info] = glp(numseries, numlags, Y, Psi, nvp, nvp2)
+%GLP Tune Minnesota hyperparameters by (log) marginal likelihood.
+%   mdl = GLP(numseries, numlags, Y, Psi) tunes whichever fields
 %   of NVP.SPEC are left FREE (2-element [lower upper] bounds) by maximising
 %   the analytic marginal likelihood of a MINNESOTABVARM prior against Y, via
 %   FMINCON, and returns the tuned MINNESOTABVARM. Fields left as a scalar in
 %   NVP.SPEC are held fixed. See MINNESOTASPEC for the scalar-or-bounds
 %   convention.
 %
-%   [mdl, info] = GLPOPTIMIZEMINNESOTA(...) also returns a struct with the
+%   [mdl, info] = GLP(...) also returns a struct with the
 %   optimisation details (bounds, starting point, FMINCON output, psi used).
 %
 %   Name-value arguments
@@ -24,14 +24,6 @@ function [mdl, info] = glp(numseries, numlags, Y, nvp)
 %                 bounded to [lower, upper] * that series' baseline - the
 %                 same multiplicative-band convention used historically for
 %                 this search (e.g. [1/100, 100]).
-%   PsiLags       AR order used ONLY to compute the psi baseline, decoupled
-%                 from the VAR's own NUMLAGS. Default 1 (AR(1) baseline,
-%                 matching the standard GLP / historical convention here -
-%                 NOT the VAR's own lag order unless you set PsiLags = numlags
-%                 explicitly).
-%   PsiMethod     "conditional" (default, closed-form / OLS-equivalent - the
-%                 historical convention for this baseline) or "exact"
-%                 (iterative Gaussian ML). See ESTIMATERESIDUALVARIANCES.
 %   PriorCoef     Struct passed to MINNESOTASPEC.logHyperprior at each
 %                 candidate point. Default empty struct -> pure marginal-
 %                 likelihood (ML) tuning. Supply fields to switch to MAP
@@ -60,7 +52,7 @@ function [mdl, info] = glp(numseries, numlags, Y, nvp)
 %   -------
 %       spec = minnesotaSpec(lambda1 = [1e-3, 5], lambda4 = [1e-3, 5], ...
 %                             lambda5 = [1e-3, 5]);
-%       [mdl, info] = glpOptimizeMinnesota(3, 4, Y, ...
+%       [mdl, info] = GLP(3, 4, Y, Psi, ...
 %           Spec = spec, PsiBand = [1/100, 100], IncludeConstant = true);
 %       Posterior = mdl.estimate(Y);
 %
@@ -69,36 +61,42 @@ function [mdl, info] = glp(numseries, numlags, Y, nvp)
 arguments
     numseries (1,1) double {mustBeInteger, mustBePositive}
     numlags   (1,1) double {mustBeInteger, mustBePositive}
-    Y         double {mustBeNonempty}
-    nvp.Spec          (1,1) minnesotaSpec = minnesotaSpec()
-    nvp.PsiBand       (1,:) double {mustBeScalarOrPositiveBounds} = 1
-    nvp.PsiLags       (1,1) double {mustBeInteger, mustBePositive} = 1
-    nvp.PsiMethod     (1,1) string {mustBeMember(nvp.PsiMethod, ["exact","conditional"])} = "conditional"
+    Y         {mustBeNonempty}
+    Psi
+    nvp.Spec          (1,1) minnesotaSpec = minnesotamniwSpec()
+    nvp.PsiBand       (1,:) double {mustBeScalarOrPositiveBounds} = 1    
     nvp.PriorCoef     (1,1) struct = struct()
-    nvp.IncludeConstant (1,1) logical = true
-    nvp.IncludeTrend    (1,1) logical = false
-    nvp.SeriesNames     = []
     nvp.OptimOptions    = optimoptions("fmincon", ...
         Display = "final", ...
         FiniteDifferenceStepSize = 1e-4, ...
         FunctionTolerance = 1e-12, ...
         StepTolerance = 1e-12, ...
         ConstraintTolerance = 1e-12)
+    nvp2.Description
+    nvp2.IncludeConstant
+    nvp2.IncludeTrend
+    nvp2.NumPredictors
+    nvp2.SeriesNames
+end
+
+if ~istabular(Y) && ~isnumeric(Y)
+    error('glp:BadDataType', 'Responses input must be numeric or tabular')
+end
+
+if istabular(Y)
+    if ~isfield(nvp, "SeriesNames")
+        nvp.SeriesNames = string(Y.Properties.VariableNames);
+    end
+    Y = Y{:,:};     
 end
 
 if size(Y, 2) ~= numseries
-    error("glpOptimizeMinnesota:invalidData", ...
+    error("glp:invalidData", ...
         "Y must have %d columns, one per series.", numseries);
 end
 
-% ---- psi baseline computed ONCE, at PsiLags (decoupled from numlags) -----
-baselinePsi = estimateResidualVariances(Y, nvp.PsiLags, Method = nvp.PsiMethod);
-
 % ---- build-time options ---------------------------------------------
-buildArgs = {"IncludeConstant", nvp.IncludeConstant, "IncludeTrend", nvp.IncludeTrend};
-if ~isempty(nvp.SeriesNames)
-    buildArgs = [buildArgs, {"SeriesNames", nvp.SeriesNames}];
-end
+buildArgs = namedargs2cell(nvp2);
 
 useHyperprior = ~isempty(fieldnames(nvp.PriorCoef));
 
@@ -108,8 +106,8 @@ baseSpec         = nvp.Spec;
 
 psiFree = numel(nvp.PsiBand) == 2;
 if psiFree
-    psiLB = baselinePsi * nvp.PsiBand(1);
-    psiUB = baselinePsi * nvp.PsiBand(2);
+    psiLB = Psi * nvp.PsiBand(1);
+    psiUB = Psi * nvp.PsiBand(2);
     psiX0 = sqrt(psiLB .* psiUB);          % geometric-mean start, per series
 else
     psiLB = []; psiUB = []; psiX0 = [];
@@ -125,7 +123,7 @@ nLambdaFree = numel(lambdaNames);
         if psiFree
             candPsi = x(nLambdaFree+1:end);
         else
-            candPsi = baselinePsi * nvp.PsiBand;   % PsiBand is a fixed scalar here
+            candPsi = Psi * nvp.PsiBand;   % PsiBand is a fixed scalar here
         end
     end
 
@@ -166,7 +164,7 @@ info = struct( ...
     "PsiFree",         psiFree, ...
     "InitialSpec",     baseSpec, ...
     "FinalSpec",       finalSpec, ...
-    "BaselinePsi",     baselinePsi, ...
+    "BaselinePsi",     Psi, ...
     "FinalPsi",        finalPsi, ...
     "UsedHyperprior",  useHyperprior, ...
     "X0",              x0, ...
@@ -185,16 +183,16 @@ function mustBeScalarOrPositiveBounds(x)
 %   (fixed multiplier) or a finite 2-element [lower upper] with lower < upper
 %   (free multiplicative band).
 if numel(x) ~= 1 && numel(x) ~= 2
-    error("glpOptimizeMinnesota:invalidPsiBand", ...
+    error("glp:invalidPsiBand", ...
         "PsiBand must be a scalar or a 2-element [lower upper]; got %d elements.", ...
         numel(x));
 end
 if any(x <= 0) || any(~isfinite(x))
-    error("glpOptimizeMinnesota:invalidPsiBand", ...
+    error("glp:invalidPsiBand", ...
         "PsiBand must be finite and positive.");
 end
 if numel(x) == 2 && x(1) >= x(2)
-    error("glpOptimizeMinnesota:invalidPsiBand", ...
+    error("glp:invalidPsiBand", ...
         "PsiBand bounds must satisfy lower < upper.");
 end
 end
