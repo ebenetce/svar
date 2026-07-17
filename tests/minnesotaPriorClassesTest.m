@@ -1,16 +1,6 @@
 classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
     %minnesotaPriorClassesTest Tests for Minnesota prior class dispatch.
 
-    methods (TestClassSetup)
-        function addProjectToPath(testCase)
-            projectFolder = fileparts(fileparts(mfilename("fullpath")));
-            testCase.applyFixture(matlab.unittest.fixtures.PathFixture( ...
-                fullfile(projectFolder, "tbx", "svar")));
-            testCase.applyFixture(matlab.unittest.fixtures.PathFixture( ...
-                fullfile(projectFolder, "tbx", "svar", "priors")));
-        end
-    end
-
     methods (Test)
         function concreteConstructorsReturnExpectedClasses(testCase)
             psi = [1 4 9];
@@ -127,6 +117,62 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
             testCase.verifyClass(mniwPrior, "minnesotamniwbvarm");
             testCase.verifyClass(inwPrior, "minnesotainwbvarm");
             testCase.verifyClass(normalPrior, "minnesotanbvarm");
+        end
+
+        function mniwSpecPacksHyperpriorProperties(testCase)
+            spec = minnesotaSpec("mniw", ...
+                lambda1=hyperprior("Gamma", 0.2, 0.4, Bounds=[1e-4 5]), ...
+                lambda4=hyperprior("Gamma", 1, 1, Bounds=[1e-4 50]), ...
+                lambda5=hyperprior("Gamma", 1, 1, Bounds=[1e-4 50]));
+
+            [x0, lb, ub, names] = spec.pack();
+
+            testCase.verifyEqual(names, ["lambda1" "lambda4" "lambda5"]);
+            testCase.verifyEqual(x0, [0.2 1 1], AbsTol=1e-14);
+            testCase.verifyEqual(lb, [1e-4 1e-4 1e-4], AbsTol=0);
+            testCase.verifyEqual(ub, [5 50 50], AbsTol=0);
+        end
+
+        function inwSpecPacksHyperpriorProperties(testCase)
+            spec = minnesotaSpec("inw", ...
+                lambda1=hyperprior("Gamma", 0.2, 0.4, Bounds=[1e-4 5]), ...
+                lambda2=hyperprior("Gamma", 0.5, 0.25, Bounds=[1e-4 1]), ...
+                lambda3=1);
+
+            [x0, lb, ub, names] = spec.pack();
+
+            testCase.verifyEqual(names, ["lambda1" "lambda2"]);
+            testCase.verifyEqual(x0, [0.2 0.5], AbsTol=1e-14);
+            testCase.verifyEqual(lb, [1e-4 1e-4], AbsTol=0);
+            testCase.verifyEqual(ub, [5 1], AbsTol=0);
+        end
+
+        function normalSpecPacksHyperpriorProperties(testCase)
+            spec = minnesotaSpec("normal", ...
+                lambda1=hyperprior("Gamma", 0.2, 0.4, Bounds=[1e-4 5]), ...
+                lambda2=hyperprior("Gamma", 0.5, 0.25, Bounds=[1e-4 1]), ...
+                lambda3=1);
+
+            [x0, lb, ub, names] = spec.pack();
+
+            testCase.verifyEqual(names, ["lambda1" "lambda2"]);
+            testCase.verifyEqual(x0, [0.2 0.5], AbsTol=1e-14);
+            testCase.verifyEqual(lb, [1e-4 1e-4], AbsTol=0);
+            testCase.verifyEqual(ub, [5 1], AbsTol=0);
+        end
+
+        function specLogHyperpriorUsesPackVectorAndNames(testCase)
+            spec = minnesotaSpec("mniw", ...
+                lambda1=hyperprior("Gamma", 0.2, 0.4, Bounds=[1e-4 5]), ...
+                lambda4=[1e-4 50], ...
+                lambda5=hyperprior("Gamma", 1, 1, Bounds=[1e-4 50]));
+            [x0, ~, ~, names] = spec.pack();
+
+            logp = spec.logHyperprior(x0, names);
+            expected = spec.lambda1.logpdf(x0(1)) ...
+                + spec.lambda5.logpdf(x0(3));
+
+            testCase.verifyEqual(logp, expected, AbsTol=1e-14);
         end
     end
 

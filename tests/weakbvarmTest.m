@@ -1,16 +1,6 @@
 classdef weakbvarmTest < matlab.unittest.TestCase
     %weakbvarmTest Tests for the weak improper reduced-form prior.
 
-    methods (TestClassSetup)
-        function addProjectToPath(testCase)
-            projectFolder = fileparts(fileparts(mfilename("fullpath")));
-            testCase.applyFixture(matlab.unittest.fixtures.PathFixture( ...
-                fullfile(projectFolder, "tbx", "svar")));
-            testCase.applyFixture(matlab.unittest.fixtures.PathFixture( ...
-                fullfile(projectFolder, "tbx", "svar", "priors")));
-        end
-    end
-
     methods (Test)
         function constructorSetsWeakHyperparameters(testCase)
             n = 3;

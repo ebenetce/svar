@@ -2,43 +2,41 @@ classdef hyperprior
     %HYPERPRIOR A single hyperprior on one scalar hyperparameter.
     %
     %   A lightweight value object holding ONE distribution family and its
-    %   canonical coefficients, plus a stable log-density and the pieces an
-    %   optimiser needs (box bounds, a starting point). It is the third state
-    %   of a Minnesota spec field, alongside the existing scalar-or-bounds
-    %   convention:
+    %   native distribution coefficients, plus a stable log-density and the
+    %   pieces an optimiser needs (box bounds, a starting point). It is the
+    %   third state of a Minnesota spec field, alongside the existing
+    %   scalar-or-bounds convention:
     %
     %       spec.lambda1 = 0.2;                          % FIXED
     %       spec.lambda1 = [0.05 0.5];                   % FREE, flat prior
-    %       spec.lambda1 = hyperprior("Gamma", 2, 0.1);  % FREE, Gamma prior
+    %       spec.lambda1 = hyperprior("Gamma", 0.2, 0.4); % FREE, Gamma prior
     %
     %   so the prior on a hyperparameter IS the value of that hyperparameter -
     %   there is no separate name-keyed hyperprior container to keep in sync,
     %   and a misspelt parameter name fails as a bad property assignment
     %   rather than silently dropping a prior term.
     %
-    %   Parameterisations
-    %   -----------------
-    %   The constructor takes NATIVE parameters (always closed-form, no
-    %   solver, safe on an optimiser hot path):
-    %       hyperprior("Gamma",        k,     theta)   % shape, scale
-    %       hyperprior("InverseGamma", alpha, beta)    % shape, scale
-    %       hyperprior("Beta",         alpha, beta)
+    %   Parameterisation
+    %   ----------------
+    %   The constructor takes an interpretable (mode, standard deviation)
+    %   pair and converts it once, here, at definition:
+    %       hyperprior("Gamma",        mode, sd)
+    %       hyperprior("InverseGamma", mode, sd)
+    %       hyperprior("Beta",         mode, sd)
     %
-    %   The FROMMOMENTS factory takes an interpretable (mode, sd) pair and
-    %   converts ONCE, here, at definition:
-    %       hyperprior.fromMoments("Gamma", mode, sd)  % closed form
-    %       hyperprior.fromMoments("Beta",  mode, sd)  % 1-D fzero (base MATLAB)
-    %       hyperprior.fromMoments("InverseGamma", mode, sd)  % 1-D fzero
-    %   No Optimization Toolbox, no eqnproblem: Gamma is analytic, Beta and
-    %   Inverse-Gamma each reduce to a single scalar root solved with FZERO.
+    %   The stored Params property contains the native parameters used by
+    %   LOGPDF: Gamma shape/scale, Inverse-Gamma shape/scale, or Beta
+    %   alpha/beta. No Optimization Toolbox, no eqnproblem: Gamma is
+    %   analytic, Beta and Inverse-Gamma each reduce to a single scalar root
+    %   solved with FZERO.
     %
     %   Methods
     %   -------
     %       logpdf(hp, x)   stable log density (log space throughout; returns
     %                       -Inf outside the support rather than throwing, so
     %                       an optimiser can probe freely)
-    %       bounds(hp)      [lo hi] quantile box for the optimiser
-    %       x0(hp)          starting point (the mode, or the median as fallback)
+    %       Bounds         [lo hi] box for the optimiser
+    %       X0             starting point
     %       modeOf/meanOf   convenience moments
     %
     %   Dependencies: GAMINV/BETAINV (Statistics and Machine Learning Toolbox)
@@ -58,7 +56,7 @@ classdef hyperprior
     methods
 
         function obj = hyperprior(distribution, mode, sd, nvp)
-            %HYPERPRIOR Construct from native parameters (no solver).
+            %HYPERPRIOR Construct from mode and standard deviation.
             arguments
                 distribution (1,1) string {mustBeMember(distribution, ["Gamma", "InverseGamma", "Beta"])}
                 mode (1,1) double {mustBePositive}
@@ -71,11 +69,13 @@ classdef hyperprior
             [p1, p2] = fromMoments(distribution, mode, sd);
             obj.Params       = [p1, p2];
                 
-            if ~isfield(nvp, "Bounds")                
+            if ~isfield(nvp, "Bounds")
                 obj.Bounds = obj.quantileBounds;
             else
-                if nvp.Bounds(1) >= nvp.Bounds(2)
-                    error("hyperpriors:BoundsWrongOrder", "Lower Bounds can't be equal or larger than the Upper Bound")
+                if ~isValidBounds(obj, nvp.Bounds)
+                    error("hyperprior:invalidBounds", ...
+                        "Bounds must be ordered and inside the %s support.", ...
+                        obj.Distribution);
                 end
                 obj.Bounds = nvp.Bounds;
             end
@@ -83,6 +83,12 @@ classdef hyperprior
             if ~isfield(nvp, "X0")
                 obj.X0 = obj.initialValue;
             else
+                if ~isfinite(nvp.X0) || nvp.X0 < obj.Bounds(1) ...
+                        || nvp.X0 > obj.Bounds(2) || ~isfinite(obj.logpdf(nvp.X0))
+                    error("hyperprior:invalidX0", ...
+                        "X0 must be finite, inside Bounds, and inside the %s support.", ...
+                        obj.Distribution);
+                end
                 obj.X0 = nvp.X0;
             end
         end
@@ -139,7 +145,7 @@ classdef hyperprior
                     hi = betainv(massBounds(2), a, b);
             end
             if nargout <= 1
-                lo = [lo hi];   % allow b = hp.bounds()
+                lo = [lo hi];   % allow b = hp.quantileBounds()
             end
         end
 
@@ -260,4 +266,20 @@ if ~isfinite(flo) || ~isfinite(fhi) || sign(flo) == sign(fhi)
         "outside the feasible range for this mode).", name, m, s);
 end
 root = fzero(f, [lo hi]);
+end
+
+function tf = isValidBounds(obj, bounds)
+lo = bounds(1);
+hi = bounds(2);
+if ~isreal(bounds) || isnan(lo) || isnan(hi) || lo >= hi
+    tf = false;
+    return
+end
+
+switch obj.Distribution
+    case {"Gamma", "InverseGamma"}
+        tf = isfinite(lo) && lo > 0 && (isfinite(hi) || isinf(hi));
+    case "Beta"
+        tf = isfinite(lo) && isfinite(hi) && lo > 0 && hi < 1;
+end
 end

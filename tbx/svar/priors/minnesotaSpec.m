@@ -1,14 +1,26 @@
-function spec = minnesotaSpec(Method, varargin)
-
-arguments
-    Method (1,1) string
-end
-
-arguments (Repeating)
-    varargin
-end
+function spec = minnesotaSpec(varargin)
 
 [aliasMap, aliasSummary] = localAliasMap();
+
+if nargin == 0
+    Method = "mniw";
+    specArgs = {};
+else
+    firstArg = varargin{1};
+    if (isstring(firstArg) || ischar(firstArg)) && isscalar(string(firstArg))
+        firstMethod = lower(erase(string(firstArg), ["-","_"," "]));
+        if isKey(aliasMap, firstMethod) || nargin == 1
+            Method = string(firstArg);
+            specArgs = varargin(2:end);
+        else
+            Method = "mniw";
+            specArgs = varargin;
+        end
+    else
+        Method = "mniw";
+        specArgs = varargin;
+    end
+end
 
 method = lower(erase(string(Method), ["-","_"," "]));
 if ~isKey(aliasMap, method)
@@ -19,11 +31,11 @@ method = aliasMap(method);
 
 switch method
     case "mniw"
-        spec = minnesotamniwSpec.create(varargin{:});
+        spec = minnesotamniwSpec.create(specArgs{:});
     case "inw"
-        spec = minnesotainwSpec.create(varargin{:});
+        spec = minnesotainwSpec.create(specArgs{:});
     case "normal"
-        spec = minnesotanSpec.create(varargin{:});
+        spec = minnesotanSpec.create(specArgs{:});
 end
 
 end

@@ -28,16 +28,20 @@ hyperparameters.
 ### Name-Value Arguments
 
 `lambda1` - Overall tightness
-: `0.2` (default) | positive scalar.
+: `0.2` (default) | positive scalar | `[lower upper]` bounds |
+  `hyperprior`.
 
 `lambda3` - Lag-decay exponent
-: `1` (default) | nonnegative scalar.
+: `1` (default) | nonnegative scalar | `[lower upper]` bounds |
+  `hyperprior`.
 
 `lambda4` - Sum-of-coefficients dummy tightness
-: `Inf` (default) | positive scalar. Set to `Inf` to disable this dummy prior.
+: `Inf` (default) | positive scalar | `[lower upper]` bounds |
+  `hyperprior`. Set to `Inf` to disable this dummy prior.
 
 `lambda5` - Dummy-initial-observation tightness
-: `Inf` (default) | positive scalar. Set to `Inf` to disable this dummy prior.
+: `Inf` (default) | positive scalar | `[lower upper]` bounds |
+  `hyperprior`. Set to `Inf` to disable this dummy prior.
 
 `Vc` - Prior variance for deterministic terms
 : `1e4` (default) | positive scalar.
@@ -73,16 +77,17 @@ hyperparameters.
   vector.
 
 `pack`
-: Map selected finite positive hyperparameters to log space for unconstrained
-  optimization.
+: Return optimizer starts, lower bounds, upper bounds, and field names for
+  free hyperparameters. Numeric bounds use a geometric-mean start; hyperprior
+  fields use their `Bounds` and `X0` properties.
 
 `unpack`
-: Write an unconstrained optimizer vector back to selected hyperparameter
-  fields, returning a modified copy of the spec.
+: Write an optimizer vector back to selected hyperparameter fields, returning a
+  resolved numeric copy of the spec.
 
 `logHyperprior`
-: Evaluate optional Gamma and inverse-Gamma log-density terms for
-  hyperparameter tuning.
+: Evaluate log-density terms from embedded `hyperprior` fields against a
+  resolved candidate spec.
 
 ## Examples
 
@@ -106,13 +111,20 @@ theta0 = spec.pack(freeParams);
 candidate = spec.unpack(theta0 + [0.1 0 0],freeParams);
 ```
 
-### Add a Hyperprior Term
+### Tune with Embedded Hyperpriors
 
 ```matlab
-priorcoef.lambda1.k = 2;
-priorcoef.lambda1.theta = 0.2;
+spec = minnesotaSpec("mniw", ...
+    lambda1=hyperprior("Gamma",0.2,0.4,Bounds=[1e-4 5]), ...
+    lambda3=1, ...
+    lambda4=hyperprior("Gamma",1,1,Bounds=[1e-4 50]), ...
+    lambda5=hyperprior("Gamma",1,1,Bounds=[1e-4 50]));
 
-logp = spec.logHyperprior(priorcoef,psi);
+psi0 = estimateResidualVariances(Y,1,Method="conditional");
+Psi = arrayfun(@(x) hyperprior("InverseGamma",0.02^2,0.02^2, ...
+    X0=x, Bounds=[1/100 100]*x), psi0);
+
+PriorMdl = glp(size(Y,2),numLags,Y,Psi,Spec=spec);
 ```
 
 ## More About

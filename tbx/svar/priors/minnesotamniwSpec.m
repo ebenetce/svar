@@ -99,83 +99,15 @@ classdef (Hidden) minnesotamniwSpec < minnesotaBaseSpec
                 lambda5 = spec.lambda5);
         end
 
-        function lp = logHyperprior(spec, priorcoef, residualVariances)
-            %LOGHYPERPRIOR Log prior density on the Minnesota hyperparameters.
-            %   lp = spec.logHyperprior(priorcoef)        % lambdas only
-            %   lp = spec.logHyperprior(priorcoef, residualVariances)
-            %
-            %   Returns the POSITIVE log density log p(lambda1, lambda4,
-            %   lambda5, [psi]). Needs only the spec's scalar hyperparameter
-            %   values - no build step, no data - which is why it lives here
-            %   rather than on minnesotabvarm. Errors if the spec still has
-            %   free fields (a density needs a point, not a range).
-            %
-            %   This is the piece that turns a marginal-likelihood objective
-            %   into a MAP (posterior-mode) objective. Compose them in the
-            %   optimiser:
-            %
-            %       mdl    = spec.build(n, p, psi, ...);
-            %       negObj = mdl.negativeLogMarginalLikelihood(Y) ...
-            %                - spec.logHyperprior(priorcoef, psi);
-            %
-            %   Omit the logHyperprior term for pure marginal-likelihood tuning.
-            %
-            %   priorcoef is a struct whose OPTIONAL fields switch each term on:
-            %       priorcoef.lambda1.k , priorcoef.lambda1.theta   % Gamma(shape,scale)
-            %       priorcoef.lambda4.k , priorcoef.lambda4.theta   % Gamma(shape,scale)
-            %       priorcoef.lambda5.k , priorcoef.lambda5.theta   % Gamma(shape,scale)
-            %       priorcoef.psi.alpha , priorcoef.psi.beta        % Inverse-Gamma(shape,scale)
-            %   An absent field contributes nothing (flat prior on that
-            %   parameter). A dummy switched off (Inf) contributes nothing even
-            %   if its priorcoef field is present.
+        function lp = logHyperprior(spec, x, names)
+            %LOGHYPERPRIOR Log density from embedded lambda hyperpriors.
             arguments
-                spec      (1,1) minnesotamniwSpec
-                priorcoef (1,1) struct
-                residualVariances (1,:) double = []
+                spec  (1,1) minnesotamniwSpec
+                x     (1,:) double {mustBeFinite}
+                names (1,:) string
             end
 
-            if ~spec.isResolved()
-                error("minnesotaSpec:logHyperprior:notResolved", ...
-                    "Cannot evaluate a density on a range: %s still free.", ...
-                    strjoin(spec.freeFields(), ", "));
-            end
-
-            lp = 0;
-
-            if isfield(priorcoef, "lambda1")
-                lp = lp + minnesotamniwSpec.gammaLogPdf( ...
-                    spec.lambda1, priorcoef.lambda1.k, priorcoef.lambda1.theta);
-            end
-
-            if isfield(priorcoef, "lambda4") && isfinite(spec.lambda4)
-                lp = lp + minnesotamniwSpec.gammaLogPdf( ...
-                    spec.lambda4, priorcoef.lambda4.k, priorcoef.lambda4.theta);
-            end
-
-            if isfield(priorcoef, "lambda5") && isfinite(spec.lambda5)
-                lp = lp + minnesotamniwSpec.gammaLogPdf( ...
-                    spec.lambda5, priorcoef.lambda5.k, priorcoef.lambda5.theta);
-            end
-
-            if isfield(priorcoef, "psi") && ~isempty(residualVariances)
-                lp = lp + sum(minnesotamniwSpec.invGammaLogPdf( ...
-                    residualVariances, priorcoef.psi.alpha, priorcoef.psi.beta));
-            end
-        end
-
-    end
-
-    % ---- density helpers (no state, kept private to this class) ---------
-    methods (Static, Access = private)
-
-        function r = gammaLogPdf(x, k, theta)
-            %GAMMALOGPDF Log density of Gamma(shape k, scale theta) at x > 0.
-            r = (k - 1).*log(x) - x./theta - k.*log(theta) - gammaln(k);
-        end
-
-        function r = invGammaLogPdf(x, alpha, beta)
-            %INVGAMMALOGPDF Log density of Inverse-Gamma(shape alpha, scale beta) at x > 0.
-            r = alpha.*log(beta) - (alpha + 1).*log(x) - beta./x - gammaln(alpha);
+            lp = logHyperprior@minnesotaBaseSpec(spec, x, names);
         end
 
     end

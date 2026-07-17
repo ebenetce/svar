@@ -1,14 +1,6 @@
 classdef uniformirbvarmTest < matlab.unittest.TestCase
     %uniformirbvarmTest Tests for the uniform IR reduced-form prior.
 
-    methods (TestClassSetup)
-        function addProjectToPath(testCase)
-            projectFolder = fileparts(fileparts(mfilename("fullpath")));
-            testCase.applyFixture(matlab.unittest.fixtures.PathFixture( ...
-                projectFolder));
-        end
-    end
-
     methods (Test)
         function constructorSetsImproperPriorHyperparameters(testCase)
             n = 3;

@@ -45,8 +45,9 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
             for i = 1:n
                 b = spec.(names(i));
                 if isa(b, 'hyperprior')
-                    [lb(i), ub(i)] = b.bounds();
-                    x0(i) = b.x0();
+                    lb(i) = b.Bounds(1);
+                    ub(i) = b.Bounds(2);
+                    x0(i) = b.X0;
                 else
                     lb(i) = b(1);
                     ub(i) = b(2);
@@ -69,6 +70,34 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
                 spec.(names(i)) = x(i);
             end
         end
+
+        function lp = logHyperprior(spec, x, names)
+            arguments
+                spec  (1,1) minnesotaBaseSpec
+                x     (1,:) double {mustBeFinite}
+                names (1,:) string
+            end
+            if numel(x) ~= numel(names)
+                error(string(class(spec)) + ":logHyperprior:sizeMismatch", ...
+                    "x has %d elements but names has %d.", numel(x), numel(names));
+            end
+            lp = 0;
+            for i = 1:numel(names)
+                prior = spec.(names(i));
+                if isa(prior, "hyperprior")
+                    lp = lp + prior.logpdf(x(i));
+                end
+            end
+        end
+
+        function names = hyperpriorFields(spec)
+            arguments
+                spec (1,1) minnesotaBaseSpec
+            end
+            hyperparameters = spec.hyperparameterNames();
+            mask = arrayfun(@(n) isa(spec.(n), "hyperprior"), hyperparameters);
+            names = hyperparameters(mask);
+        end
     end
 
     methods (Access = protected)
@@ -81,7 +110,7 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
         function assertResolvedForBuild(spec)
             if ~spec.isResolved()
                 error(string(class(spec)) + ":build:notResolved", ...
-                    "Cannot build: %s still free (2-element bound). Call unpack " + ...
+                    "Cannot build: %s still free. Call unpack " + ...
                     "with a candidate point first.", strjoin(spec.freeFields(), ", "));
             end
         end
@@ -94,10 +123,10 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
             end
             args = [namedargs2cell(opts), ...
                 {"ResidualVariances", residualVariances, ...
-                 "lambda1", spec.lambda1, ...
-                 "lambda3", spec.lambda3, ...
-                 "Vc", spec.Vc, ...
-                 "PriorMean", spec.PriorMean}];
+                "lambda1", spec.lambda1, ...
+                "lambda3", spec.lambda3, ...
+                "Vc", spec.Vc, ...
+                "PriorMean", spec.PriorMean}];
         end
     end
 
