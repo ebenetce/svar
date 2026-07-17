@@ -1,4 +1,4 @@
-function [mdl, info] = glp(numseries, numlags, Y, Psi, nvp, nvp2)
+function [mdl, info] = glp(numseries, numlags, Y, ResidualVariances, nvp, nvp2)
 %GLP Tune Minnesota hyperparameters by (log) marginal likelihood.
 %   mdl = GLP(numseries, numlags, Y, Psi) tunes whichever fields
 %   of NVP.SPEC are left FREE (2-element [lower upper] bounds) by maximising
@@ -62,8 +62,8 @@ arguments
     numseries (1,1) double {mustBeInteger, mustBePositive}
     numlags   (1,1) double {mustBeInteger, mustBePositive}
     Y         {mustBeNonempty}
-    Psi
-    nvp.Spec          (1,1) minnesotamniwSpec = minnesotamniwSpec()
+    ResidualVariances
+    nvp.Spec          (1,1) minnesotaBaseSpec = minnesotaSpec("mniw")
     nvp.PsiBand       (1,:) double {mustBeScalarOrPositiveBounds} = 1    
     nvp.PriorCoef     (1,1) struct = struct()
     nvp.OptimOptions    = optimoptions("fmincon", ...
@@ -106,8 +106,8 @@ baseSpec         = nvp.Spec;
 
 psiFree = numel(nvp.PsiBand) == 2;
 if psiFree
-    psiLB = Psi * nvp.PsiBand(1);
-    psiUB = Psi * nvp.PsiBand(2);
+    psiLB = ResidualVariances * nvp.PsiBand(1);
+    psiUB = ResidualVariances * nvp.PsiBand(2);
     psiX0 = sqrt(psiLB .* psiUB);          % geometric-mean start, per series
 else
     psiLB = []; psiUB = []; psiX0 = [];
@@ -123,7 +123,7 @@ nLambdaFree = numel(lambdaNames);
         if psiFree
             candPsi = x(nLambdaFree+1:end);
         else
-            candPsi = Psi * nvp.PsiBand;   % PsiBand is a fixed scalar here
+            candPsi = ResidualVariances * nvp.PsiBand;   % PsiBand is a fixed scalar here
         end
     end
 
@@ -164,7 +164,7 @@ info = struct( ...
     "PsiFree",         psiFree, ...
     "InitialSpec",     baseSpec, ...
     "FinalSpec",       finalSpec, ...
-    "BaselinePsi",     Psi, ...
+    "BaselinePsi",     ResidualVariances, ...
     "FinalPsi",        finalPsi, ...
     "UsedHyperprior",  useHyperprior, ...
     "X0",              x0, ...

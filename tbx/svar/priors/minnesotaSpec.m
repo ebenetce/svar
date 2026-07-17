@@ -1,33 +1,46 @@
 function spec = minnesotaSpec(Method, varargin)
 
 arguments
-    Method (1,1) string = "mniw"
+    Method (1,1) string
 end
 
 arguments (Repeating)
     varargin
 end
 
-validMethods = ["mniw","inw","normal"];
-method = lower(Method);
-specArgs = varargin;
+[aliasMap, aliasSummary] = localAliasMap();
 
-if ~any(method == validMethods)
-    if isempty(varargin)
-        error("minnesotaSpec:unknownMethod", ...
-            "Method must be one of: %s.", strjoin(validMethods, ", "));
-    end
-    method = "mniw";
-    specArgs = [{Method}, varargin];
+method = lower(erase(string(Method), ["-","_"," "]));
+if ~isKey(aliasMap, method)
+    error("minnesotaSpec:unknownMethod", ...
+        "Unrecognized Method '%s'.%s%s", Method, newline, aliasSummary);
 end
+method = aliasMap(method);
 
 switch method
     case "mniw"
-        spec = minnesotamniwSpec(specArgs{:});
+        spec = minnesotamniwSpec.create(varargin{:});
     case "inw"
-        spec = minnesotainwSpec(specArgs{:});
+        spec = minnesotainwSpec.create(varargin{:});
     case "normal"
-        spec = minnesotanSpec(specArgs{:});
+        spec = minnesotanSpec.create(varargin{:});
 end
+
+end
+
+function [aliasMap, aliasSummary] = localAliasMap()
+mniwAliases = ["mniw","conjugate","matrixnormal"];
+inwAliases = ["inw","independent","kadiyala","kadiyalakarlsson","semiconjugate"];
+normalAliases = ["normal","litterman","fixed","fixedsigma"];
+
+aliasMap = dictionary(mniwAliases, "mniw", inwAliases, "inw", normalAliases, "normal");
+
+aliasSummary = strjoin([ ...
+    "Available Method aliases:", ...
+    "  mniw   (Matrix-Normal-Inverse-Wishart): " + strjoin(mniwAliases, ", "), ...
+    "  inw    (Independent Normal-Wishart):    " + strjoin(inwAliases, ", "), ...
+    "  normal (fixed-Sigma Normal):            " + strjoin(normalAliases, ", "), ...
+    "Hyphens, underscores, and spaces are ignored when matching aliases."], ...
+    newline);
 
 end

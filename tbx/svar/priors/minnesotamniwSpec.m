@@ -1,4 +1,4 @@
-classdef minnesotamniwSpec
+classdef (Hidden) minnesotamniwSpec < minnesotaBaseSpec
     %MINNESOTASPEC Hyperparameter recipe for a conjugate Minnesota BVAR prior.
     %
     %   A lightweight value object that holds the Minnesota hyperparameters
@@ -50,107 +50,32 @@ classdef minnesotamniwSpec
     %   under this structure.
 
     properties
-        lambda1   (1,:) double {mustBeScalarOrBounds} = 0.2   % overall tightness
-        lambda3   (1,:) double {mustBeScalarOrBounds} = 1     % lag decay
-        lambda4   (1,:) double {mustBeScalarOrBounds} = Inf   % sum-of-coeff (Inf = off)
-        lambda5   (1,:) double {mustBeScalarOrBounds} = Inf   % dummy-init-obs (Inf = off)
-        Vc        (1,1) double {mustBePositive}      = 1e4    % constant / trend variance
-        PriorMean (1,:) double = []                           % own first-lag mean ([] -> ones)
+        lambda4   (1,:) {mustBeScalarOrBounds} = Inf   % sum-of-coeff (Inf = off)
+        lambda5   (1,:) {mustBeScalarOrBounds} = Inf   % dummy-init-obs (Inf = off)
     end
 
-    properties (Constant, Access = private)
-        HyperparamNames = ["lambda1","lambda3","lambda4","lambda5"]
+    methods (Static, Hidden)
+        function spec = create(varargin)
+            spec = minnesotamniwSpec(varargin{:});
+        end
     end
 
-    methods
+    methods (Access = private)
 
         function spec = minnesotamniwSpec(nvp)
             arguments
-                nvp.lambda1   (1,:) double
-                nvp.lambda3   (1,:) double
-                nvp.lambda4   (1,:) double
-                nvp.lambda5   (1,:) double
+                nvp.lambda1   (1,:)
+                nvp.lambda3   (1,:)
+                nvp.lambda4   (1,:)
+                nvp.lambda5   (1,:)
                 nvp.Vc        (1,1) double
                 nvp.PriorMean (1,:) double
             end
-            % Assign only the fields the caller actually provided; the rest
-            % keep their property defaults above. Property validators enforce
-            % the scalar-or-bounds convention on assignment.
-            for f = string(fieldnames(nvp))'
-                spec.(f) = nvp.(f);
-            end
+            spec = spec.assignSpecInputs(nvp);
         end
+    end
 
-        function tf = isFree(spec, name)
-            %ISFREE True if the named hyperparameter is a 2-element bound.
-            arguments
-                spec (1,1) minnesotamniwSpec
-                name (1,1) string
-            end
-            tf = numel(spec.(name)) == 2;
-        end
-
-        function names = freeFields(spec)
-            %FREEFIELDS Names of the currently-free hyperparameters, in a
-            %   fixed canonical order (lambda1, lambda3, lambda4, lambda5).
-            arguments
-                spec (1,1) minnesotamniwSpec
-            end
-            mask  = arrayfun(@(n) spec.isFree(n), minnesotamniwSpec.HyperparamNames);
-            names = minnesotamniwSpec.HyperparamNames(mask);
-        end
-
-        function tf = isResolved(spec)
-            %ISRESOLVED True if every hyperparameter is fixed (scalar).
-            %   build() and logHyperprior() require a resolved spec - neither
-            %   can evaluate against a range.
-            arguments
-                spec (1,1) minnesotamniwSpec
-            end
-            tf = isempty(spec.freeFields());
-        end
-
-        function [x0, lb, ub, names] = pack(spec)
-            %PACK Bounds and a starting point for every free hyperparameter.
-            %   x0 uses the geometric mean of each [lower upper] bound, the
-            %   natural default for a positive, typically-log-scaled
-            %   hyperparameter (e.g. a symmetric multiplicative band around 1
-            %   has geometric-mean midpoint exactly 1).
-            arguments
-                spec (1,1) minnesotamniwSpec
-            end
-            names = spec.freeFields();
-            n     = numel(names);
-            x0 = zeros(1, n); lb = zeros(1, n); ub = zeros(1, n);
-            for i = 1:n
-                b     = spec.(names(i));
-                lb(i) = b(1);
-                ub(i) = b(2);
-                x0(i) = sqrt(b(1)*b(2));
-            end
-        end
-
-        function spec = unpack(spec, x, names)
-            %UNPACK Write point values back into the named fields.
-            %   Returns a modified COPY (value semantics), leaving the
-            %   caller's spec untouched. Each field becomes FIXED (scalar) at
-            %   the supplied value, regardless of whether it was free before -
-            %   this is how a candidate point during optimisation becomes a
-            %   concrete, buildable spec.
-            arguments
-                spec  (1,1) minnesotamniwSpec
-                x     (1,:) double
-                names (1,:) string
-            end
-            if numel(x) ~= numel(names)
-                error("minnesotaSpec:unpack:sizeMismatch", ...
-                    "x has %d elements but names has %d.", numel(x), numel(names));
-            end
-            for i = 1:numel(names)
-                spec.(names(i)) = x(i);
-            end
-        end
-
+    methods
         function mdl = build(spec, numseries, numlags, residualVariances, opts)
             %BUILD Materialise a MINNESOTABVARM from this (resolved) spec.
             %   residualVariances is taken precomputed (compute it once,
@@ -167,20 +92,11 @@ classdef minnesotamniwSpec
                 opts.SeriesNames
                 opts.Description
             end
-            if ~spec.isResolved()
-                error("minnesotaSpec:build:notResolved", ...
-                    "Cannot build: %s still free (2-element bound). Call unpack " + ...
-                    "with a candidate point first.", strjoin(spec.freeFields(), ", "));
-            end
-            args = namedargs2cell(opts);
+            spec.assertResolvedForBuild();
+            args = spec.modelConstructorArgs(residualVariances, opts);
             mdl = minnesotamniwbvarm(numseries, numlags, args{:}, ...
-                ResidualVariances = residualVariances, ...
-                lambda1           = spec.lambda1, ...
-                lambda3           = spec.lambda3, ...
-                lambda4           = spec.lambda4, ...
-                lambda5           = spec.lambda5, ...
-                Vc                = spec.Vc, ...
-                PriorMean         = spec.PriorMean);
+                lambda4 = spec.lambda4, ...
+                lambda5 = spec.lambda5);
         end
 
         function lp = logHyperprior(spec, priorcoef, residualVariances)
@@ -263,7 +179,10 @@ classdef minnesotamniwSpec
         end
 
     end
-end
 
-% mustBeScalarOrBounds is defined in its own file (mustBeScalarOrBounds.m),
-% shared with MINNESOTAINWSPEC - see that file for the validator itself.
+    methods (Access = protected)
+        function names = hyperparameterNames(~)
+            names = ["lambda1","lambda3","lambda4","lambda5"];
+        end
+    end
+end

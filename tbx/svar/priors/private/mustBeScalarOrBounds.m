@@ -10,6 +10,10 @@ function mustBeScalarOrBounds(x)
 %
 %   See also MINNESOTASPEC, MINNESOTAINWSPEC.
 
+if isa(x, 'hyperprior')
+    return
+end
+
 if numel(x) ~= 1 && numel(x) ~= 2
     error("mustBeScalarOrBounds:invalidHyperparam", ...
         "Value must be a scalar (fixed) or a 2-element [lower upper] bound " + ...
@@ -30,4 +34,5 @@ if numel(x) == 2
             "Bounds must satisfy lower < upper.");
     end
 end
+
 end

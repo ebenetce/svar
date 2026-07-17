@@ -1,4 +1,4 @@
-classdef minnesotainwSpec
+classdef (Hidden) minnesotainwSpec < minnesotaBaseSpec
     %minnesotainwSpec Hyperparameter recipe for the Independent Normal-Wishart
     %   Minnesota prior (see INWBVARM; Kadiyala & Karlsson, 1997).
     %
@@ -29,93 +29,30 @@ classdef minnesotainwSpec
     %   correct.
 
     properties
-        lambda1   (1,:) double {mustBeScalarOrBounds} = 0.2   % overall tightness
-        lambda2   (1,:) double {mustBeScalarOrBounds} = 0.5   % cross-variable tightness (FREE here)
-        lambda3   (1,:) double {mustBeScalarOrBounds} = 1     % lag decay
-        Vc        (1,1) double {mustBePositive}      = 1e4    % constant / trend variance
-        PriorMean (1,:) double = []                           % own first-lag mean ([] -> ones)
+        lambda2   (1,:) {mustBeScalarOrBounds} = 0.5   % cross-variable tightness (FREE here)
     end
 
-    properties (Constant, Access = private)
-        HyperparamNames = ["lambda1","lambda2","lambda3"]
+    methods (Static, Hidden)
+        function spec = create(varargin)
+            spec = minnesotainwSpec(varargin{:});
+        end
     end
 
-    methods
+    methods (Access = private)
 
         function spec = minnesotainwSpec(nvp)
             arguments
-                nvp.lambda1   (1,:) double
-                nvp.lambda2   (1,:) double
-                nvp.lambda3   (1,:) double
+                nvp.lambda1   (1,:)
+                nvp.lambda2   (1,:)
+                nvp.lambda3   (1,:)
                 nvp.Vc        (1,1) double
                 nvp.PriorMean (1,:) double
             end
-            for f = string(fieldnames(nvp))'
-                spec.(f) = nvp.(f);
-            end
+            spec = spec.assignSpecInputs(nvp);
         end
+    end
 
-        function tf = isFree(spec, name)
-            %ISFREE True if the named hyperparameter is a 2-element bound.
-            arguments
-                spec (1,1) minnesotainwSpec
-                name (1,1) string
-            end
-            tf = numel(spec.(name)) == 2;
-        end
-
-        function names = freeFields(spec)
-            %FREEFIELDS Names of the currently-free hyperparameters, in a
-            %   fixed canonical order (lambda1, lambda2, lambda3).
-            arguments
-                spec (1,1) minnesotainwSpec
-            end
-            mask  = arrayfun(@(n) spec.isFree(n), minnesotainwSpec.HyperparamNames);
-            names = minnesotainwSpec.HyperparamNames(mask);
-        end
-
-        function tf = isResolved(spec)
-            %ISRESOLVED True if every hyperparameter is fixed (scalar).
-            arguments
-                spec (1,1) minnesotainwSpec
-            end
-            tf = isempty(spec.freeFields());
-        end
-
-        function [x0, lb, ub, names] = pack(spec)
-            %PACK Bounds and a starting point for every free hyperparameter.
-            %   x0 uses the geometric mean of each [lower upper] bound - see
-            %   MINNESOTASPEC.pack for the same convention.
-            arguments
-                spec (1,1) minnesotainwSpec
-            end
-            names = spec.freeFields();
-            n     = numel(names);
-            x0 = zeros(1, n); lb = zeros(1, n); ub = zeros(1, n);
-            for i = 1:n
-                b     = spec.(names(i));
-                lb(i) = b(1);
-                ub(i) = b(2);
-                x0(i) = sqrt(b(1)*b(2));
-            end
-        end
-
-        function spec = unpack(spec, x, names)
-            %UNPACK Write point values back into the named fields (returns a
-            %   modified COPY - value semantics, as in MINNESOTASPEC.unpack).
-            arguments
-                spec  (1,1) minnesotainwSpec
-                x     (1,:) double
-                names (1,:) string
-            end
-            if numel(x) ~= numel(names)
-                error("minnesotainwSpec:unpack:sizeMismatch", ...
-                    "x has %d elements but names has %d.", numel(x), numel(names));
-            end
-            for i = 1:numel(names)
-                spec.(names(i)) = x(i);
-            end
-        end
+    methods
 
         function mdl = build(spec, numseries, numlags, residualVariances, opts)
             %BUILD Materialise a MINNESOTAINWBVARM from this (resolved) spec.
@@ -132,20 +69,17 @@ classdef minnesotainwSpec
                 opts.SeriesNames
                 opts.Description
             end
-            if ~spec.isResolved()
-                error("minnesotainwSpec:build:notResolved", ...
-                    "Cannot build: %s still free (2-element bound). Call unpack " + ...
-                    "with a candidate point first.", strjoin(spec.freeFields(), ", "));
-            end
-            args = namedargs2cell(opts);
+            spec.assertResolvedForBuild();
+            args = spec.modelConstructorArgs(residualVariances, opts);
             mdl = minnesotainwbvarm(numseries, numlags, args{:}, ...
-                ResidualVariances = residualVariances, ...
-                lambda1           = spec.lambda1, ...
-                lambda2           = spec.lambda2, ...
-                lambda3           = spec.lambda3, ...
-                Vc                = spec.Vc, ...
-                PriorMean         = spec.PriorMean);
+                lambda2 = spec.lambda2);
         end
 
+    end
+
+    methods (Access = protected)
+        function names = hyperparameterNames(~)
+            names = ["lambda1","lambda2","lambda3"];
+        end
     end
 end

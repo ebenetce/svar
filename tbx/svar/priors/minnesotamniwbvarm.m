@@ -1,4 +1,4 @@
-classdef minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.mixin.CustomDisplay
+classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.mixin.CustomDisplay
     %MINNESOTAMNIWBVARM Conjugate Minnesota prior for a Bayesian VAR.
     %
     %   A thin subclass of CONJUGATEBVARM whose constructor materialises a
@@ -77,7 +77,7 @@ classdef minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.mixin.Cus
             obj  = obj@conjugatebvarm(numseries, numlags, args{:});
 
             [residualVariances, priorMean] = obj.validateMinnesotaInputs( ...
-                nvp.ResidualVariances, nvp.PriorMean, "minnesotabvarm");
+                nvp.ResidualVariances, nvp.PriorMean, "minnesotamniwbvarm");
 
             % Store the hyperparameters (read-only from here on).
             obj.ResidualVariances = residualVariances;
@@ -319,7 +319,7 @@ classdef minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.mixin.Cus
                 X(:, col) = (1:T)';
             end
             if obj.NumPredictors > 0
-                error("minnesotabvarm:predictorsUnsupported", ...
+                error("minnesotamniwbvarm:predictorsUnsupported", ...
                     ["The marginal likelihood / dummy path needs the exogenous " ...
                      "regressors, which this prior does not store. Estimate with " ...
                      "the X name-value argument instead."]);
@@ -330,11 +330,11 @@ classdef minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.mixin.Cus
 
         function validateData(obj, Y)
             if size(Y, 2) ~= obj.NumSeries
-                error("minnesotabvarm:invalidData", ...
+                error("minnesotamniwbvarm:invalidData", ...
                     "Y must have %d columns, one per series.", obj.NumSeries);
             end
             if size(Y, 1) <= obj.P
-                error("minnesotabvarm:invalidData", ...
+                error("minnesotamniwbvarm:invalidData", ...
                     "Y must have more rows than the lag order P = %d.", obj.P);
             end
         end

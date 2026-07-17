@@ -28,6 +28,19 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
             testCase.verifyError(@() minnesotabvarm(), "MATLAB:class:abstract");
         end
 
+        function abstractSpecBaseCannotBeInstantiated(testCase)
+            testCase.verifyError(@() minnesotaBaseSpec(), "MATLAB:class:abstract");
+        end
+
+        function concreteSpecConstructorsAreFactoryOnly(testCase)
+            testCase.verifyError(@() minnesotamniwSpec(), ...
+                "MATLAB:class:MethodRestricted");
+            testCase.verifyError(@() minnesotainwSpec(), ...
+                "MATLAB:class:MethodRestricted");
+            testCase.verifyError(@() minnesotanSpec(), ...
+                "MATLAB:class:MethodRestricted");
+        end
+
         function inwCovarianceUsesFullCoefficientLayout(testCase)
             prior = minnesotainwbvarm(3, 2, ResidualVariances=[1 4 9]);
             numCoefficients = minnesotaPriorClassesTest.numEquationCoefficients(prior);
@@ -75,6 +88,35 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
             testCase.verifyEqual(legacySpec.lambda1, [1e-3 5], AbsTol=0);
         end
 
+        function factoryDispatchesAliases(testCase)
+            testCase.verifyClass(minnesotaSpec("conjugate"), "minnesotamniwSpec");
+            testCase.verifyClass(minnesotaSpec("semiconjugate"), "minnesotainwSpec");
+            testCase.verifyClass(minnesotaSpec("fixedsigma"), "minnesotanSpec");
+        end
+
+        function unknownMethodMessageListsAliases(testCase)
+            import matlab.unittest.constraints.ContainsSubstring
+
+            message = minnesotaPriorClassesTest.unknownMethodMessage();
+
+            testCase.verifyThat(message, ...
+                ContainsSubstring("Available Method aliases:"));
+            testCase.verifyThat(message, ...
+                ContainsSubstring("mniw   (Matrix-Normal-Inverse-Wishart):"));
+            testCase.verifyThat(message, ...
+                ContainsSubstring("inw    (Independent Normal-Wishart):"));
+            testCase.verifyThat(message, ...
+                ContainsSubstring("normal (fixed-Sigma Normal):"));
+            testCase.verifyThat(message, ...
+                ContainsSubstring("Hyphens, underscores, and spaces are ignored"));
+        end
+
+        function specsInheritSharedBase(testCase)
+            testCase.verifyTrue(isa(minnesotaSpec(), "minnesotaBaseSpec"));
+            testCase.verifyTrue(isa(minnesotaSpec("inw"), "minnesotaBaseSpec"));
+            testCase.verifyTrue(isa(minnesotaSpec("normal"), "minnesotaBaseSpec"));
+        end
+
         function specsBuildExpectedModelClasses(testCase)
             psi = [1 4 9];
 
@@ -94,6 +136,15 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
                 + double(prior.IncludeConstant) ...
                 + double(prior.IncludeTrend) ...
                 + prior.NumPredictors;
+        end
+
+        function message = unknownMethodMessage()
+            try
+                minnesotaSpec("unknown");
+                message = "";
+            catch ME
+                message = string(ME.message);
+            end
         end
     end
 end
