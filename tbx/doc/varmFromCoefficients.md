@@ -19,14 +19,14 @@ model using `template` for the model layout and using the supplied coefficient
 and covariance draw for the numeric parameters.
 
 The function is prior-agnostic. `template` can be a `conjugatebvarm` object or a
-subclass such as `minnesotabvarm`, prior or posterior. The function uses only
-layout properties such as `NumSeries`, `P`, `SeriesNames`, `IncludeConstant`,
-`IncludeTrend`, and `NumPredictors`.
+subclass such as `minnesotamniwbvarm`, prior or posterior. The function uses
+only layout properties such as `NumSeries`, `P`, `SeriesNames`,
+`IncludeConstant`, `IncludeTrend`, and `NumPredictors`.
 
 ## Input Arguments
 
 `template` - Bayesian VAR template
-: `bvar` object, such as `conjugatebvarm`, `minnesotabvarm`,
+: `bvar` object, such as `conjugatebvarm`, `minnesotamniwbvarm`,
   `weakbvarm`, or `uniformirbvarm`.
 
 `coefficients` - Coefficient draw
@@ -75,4 +75,4 @@ object.
 
 ## See Also
 
-`varm`, `simulate`, `svar.irf`, `minnesotabvarm`, `conjugatebvarm`
+`varm`, `simulate`, `svar.irf`, `minnesotamniwbvarm`, `conjugatebvarm`

@@ -8,13 +8,26 @@ arguments (Repeating)
     varargin
 end
 
-switch Method
+validMethods = ["mniw","inw","normal"];
+method = lower(Method);
+specArgs = varargin;
+
+if ~any(method == validMethods)
+    if isempty(varargin)
+        error("minnesotaSpec:unknownMethod", ...
+            "Method must be one of: %s.", strjoin(validMethods, ", "));
+    end
+    method = "mniw";
+    specArgs = [{Method}, varargin];
+end
+
+switch method
     case "mniw"
-        spec = minnesotamniwSpec(varargin{:});
+        spec = minnesotamniwSpec(specArgs{:});
     case "inw"
-        spec = minnesotaiwSpec(varargin{:});
+        spec = minnesotainwSpec(specArgs{:});
     case "normal"
-        spec = minnesotanSpec(varargin{:});
+        spec = minnesotanSpec(specArgs{:});
 end
 
 end

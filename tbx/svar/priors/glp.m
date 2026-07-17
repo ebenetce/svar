@@ -63,7 +63,7 @@ arguments
     numlags   (1,1) double {mustBeInteger, mustBePositive}
     Y         {mustBeNonempty}
     Psi
-    nvp.Spec          (1,1) minnesotaSpec = minnesotamniwSpec()
+    nvp.Spec          (1,1) minnesotamniwSpec = minnesotamniwSpec()
     nvp.PsiBand       (1,:) double {mustBeScalarOrPositiveBounds} = 1    
     nvp.PriorCoef     (1,1) struct = struct()
     nvp.OptimOptions    = optimoptions("fmincon", ...

@@ -117,15 +117,15 @@ classdef minnesotainwSpec
             end
         end
 
-        function mdl = build(spec, numseries, numlags, ppsi, opts)
+        function mdl = build(spec, numseries, numlags, residualVariances, opts)
             %BUILD Materialise a MINNESOTAINWBVARM from this (resolved) spec.
-            %   ppsi is taken precomputed. Errors if the spec still has free
-            %   fields - build needs concrete numbers, not ranges.
+            %   residualVariances is taken precomputed. Errors if the spec
+            %   still has free fields - build needs concrete numbers, not ranges.
             arguments
-                spec       (1,1) minnesotainwSpec
-                numseries  (1,1) double {mustBeInteger, mustBePositive}
-                numlags    (1,1) double {mustBeInteger, mustBePositive}
-                ppsi       (1,:) double {mustBePositive}
+                spec              (1,1) minnesotainwSpec
+                numseries         (1,1) double {mustBeInteger, mustBePositive}
+                numlags           (1,1) double {mustBeInteger, mustBePositive}
+                residualVariances (1,:) double {mustBePositive}
                 opts.IncludeConstant
                 opts.IncludeTrend
                 opts.NumPredictors
@@ -138,13 +138,13 @@ classdef minnesotainwSpec
                     "with a candidate point first.", strjoin(spec.freeFields(), ", "));
             end
             args = namedargs2cell(opts);
-            mdl = minnesotainwSpec(numseries, numlags, args{:}, ...
-                ppsi      = ppsi, ...
-                lambda1   = spec.lambda1, ...
-                lambda2   = spec.lambda2, ...
-                lambda3   = spec.lambda3, ...
-                Vc        = spec.Vc, ...
-                PriorMean = spec.PriorMean);
+            mdl = minnesotainwbvarm(numseries, numlags, args{:}, ...
+                ResidualVariances = residualVariances, ...
+                lambda1           = spec.lambda1, ...
+                lambda2           = spec.lambda2, ...
+                lambda3           = spec.lambda3, ...
+                Vc                = spec.Vc, ...
+                PriorMean         = spec.PriorMean);
         end
 
     end

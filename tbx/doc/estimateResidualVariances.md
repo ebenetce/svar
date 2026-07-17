@@ -3,8 +3,8 @@
 Estimate per-series residual variances from univariate autoregressions.
 
 `estimateResidualVariances` fits an independent AR model to each response
-series and returns the innovation variance estimates used as the `ppsi` scale
-for Minnesota-prior workflows.
+series and returns the innovation variance estimates used as the residual
+variance scale for Minnesota-prior workflows.
 
 ## Syntax
 
@@ -53,7 +53,8 @@ likelihood based on the observed lagged sample.
 ```matlab
 numLags = 4;
 psi = estimateResidualVariances(Y,numLags);
-PriorMdl = minnesotabvarm(size(Y,2),numLags,ppsi=psi);
+PriorMdl = minnesotamniwbvarm(size(Y,2),numLags, ...
+    ResidualVariances=psi);
 ```
 
 ### Use the Conditional Estimator
@@ -72,8 +73,8 @@ likelihood.
 
 The residual variance vector is prior scale information, not a hyperparameter
 candidate. Compute it once for a given data set and lag order, then reuse it
-while varying `minnesotaSpec` or `minnesotabvarm` hyperparameters.
+while varying `minnesotaSpec` or `minnesotamniwbvarm` hyperparameters.
 
 ## See Also
 
-`minnesotabvarm`, `minnesotaSpec`, `arima`, `varm`, `estimate`
+`minnesotamniwbvarm`, `minnesotaSpec`, `arima`, `varm`, `estimate`

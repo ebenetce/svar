@@ -1,11 +1,10 @@
 # minnesotaSpec
 
-Hyperparameter specification for a conjugate Minnesota BVAR prior.
+Factory for Minnesota BVAR hyperparameter specifications.
 
-The `minnesotaSpec` value object stores Minnesota-prior hyperparameters and
-builds `minnesotabvarm` objects from those settings. It is useful when tuning
-hyperparameters because it can pack selected positive parameters into an
-unconstrained optimizer vector and unpack candidate vectors back into a spec.
+The `minnesotaSpec` dispatcher creates Minnesota-prior spec objects. With no
+method argument it returns a `minnesotamniwSpec`, preserving the GLP-style
+conjugate workflow.
 
 ## Creation
 
@@ -13,13 +12,16 @@ unconstrained optimizer vector and unpack candidate vectors back into a spec.
 
 ```matlab
 spec = minnesotaSpec
+spec = minnesotaSpec(Method)
 spec = minnesotaSpec(Name=Value)
 ```
 
 ### Description
 
-`spec = minnesotaSpec` creates a specification with default Minnesota
+`spec = minnesotaSpec` creates a `minnesotamniwSpec` with default Minnesota
 hyperparameters.
+
+`spec = minnesotaSpec(Method)` chooses `"mniw"`, `"inw"`, or `"normal"`.
 
 `spec = minnesotaSpec(Name=Value)` sets one or more hyperparameter fields.
 
@@ -42,7 +44,7 @@ hyperparameters.
 
 `PriorMean` - Own first-lag prior mean
 : `[]` (default) | numeric row vector. An empty value means
-  `minnesotabvarm` uses a row vector of ones.
+  the built model uses a row vector of ones.
 
 ## Properties
 
@@ -67,7 +69,7 @@ hyperparameters.
 ## Object Functions
 
 `build`
-: Materialize a `minnesotabvarm` object from the spec and a residual variance
+: Materialize a concrete Minnesota model from the spec and a residual variance
   vector.
 
 `pack`
@@ -115,12 +117,12 @@ logp = spec.logHyperprior(priorcoef,psi);
 
 ## More About
 
-### Separation from `minnesotabvarm`
+### Separation from Model Objects
 
 `minnesotaSpec` is the mutable recipe. It stores hyperparameter values and
-optimization helpers but no data and no model moments. `minnesotabvarm` is the
-materialized prior built from a spec, a model size, a lag order, and a
-precomputed residual variance vector.
+optimization helpers but no data and no model moments. Concrete model objects
+such as `minnesotamniwbvarm` are materialized from a spec, a model size, a lag
+order, and a precomputed residual variance vector.
 
 This separation is useful for marginal-likelihood or MAP tuning loops: update a
 spec, build a prior, evaluate the objective, and repeat without recomputing the
@@ -128,4 +130,5 @@ residual variance scale.
 
 ## See Also
 
-`minnesotabvarm`, `estimateResidualVariances`, `fminsearch`, `fminunc`
+`minnesotamniwbvarm`, `minnesotainwbvarm`, `minnesotanbvarm`,
+`estimateResidualVariances`, `fminsearch`, `fminunc`

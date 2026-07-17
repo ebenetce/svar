@@ -84,7 +84,7 @@ classdef minnesotamniwSpec
         function tf = isFree(spec, name)
             %ISFREE True if the named hyperparameter is a 2-element bound.
             arguments
-                spec (1,1) minnesotaSpec
+                spec (1,1) minnesotamniwSpec
                 name (1,1) string
             end
             tf = numel(spec.(name)) == 2;
@@ -94,7 +94,7 @@ classdef minnesotamniwSpec
             %FREEFIELDS Names of the currently-free hyperparameters, in a
             %   fixed canonical order (lambda1, lambda3, lambda4, lambda5).
             arguments
-                spec (1,1) minnesotaSpec
+                spec (1,1) minnesotamniwSpec
             end
             mask  = arrayfun(@(n) spec.isFree(n), minnesotamniwSpec.HyperparamNames);
             names = minnesotamniwSpec.HyperparamNames(mask);
@@ -105,7 +105,7 @@ classdef minnesotamniwSpec
             %   build() and logHyperprior() require a resolved spec - neither
             %   can evaluate against a range.
             arguments
-                spec (1,1) minnesotaSpec
+                spec (1,1) minnesotamniwSpec
             end
             tf = isempty(spec.freeFields());
         end
@@ -117,7 +117,7 @@ classdef minnesotamniwSpec
             %   hyperparameter (e.g. a symmetric multiplicative band around 1
             %   has geometric-mean midpoint exactly 1).
             arguments
-                spec (1,1) minnesotaSpec
+                spec (1,1) minnesotamniwSpec
             end
             names = spec.freeFields();
             n     = numel(names);
@@ -138,7 +138,7 @@ classdef minnesotamniwSpec
             %   this is how a candidate point during optimisation becomes a
             %   concrete, buildable spec.
             arguments
-                spec  (1,1) minnesotaSpec
+                spec  (1,1) minnesotamniwSpec
                 x     (1,:) double
                 names (1,:) string
             end
@@ -151,16 +151,16 @@ classdef minnesotamniwSpec
             end
         end
 
-        function mdl = build(spec, numseries, numlags, ppsi, opts)
+        function mdl = build(spec, numseries, numlags, residualVariances, opts)
             %BUILD Materialise a MINNESOTABVARM from this (resolved) spec.
-            %   ppsi is taken precomputed (compute it once, outside any
-            %   tuning loop). Errors if the spec still has free fields - build
-            %   needs concrete numbers, not ranges.
+            %   residualVariances is taken precomputed (compute it once,
+            %   outside any tuning loop). Errors if the spec still has free
+            %   fields - build needs concrete numbers, not ranges.
             arguments
-                spec       (1,1) minnesotaSpec
-                numseries  (1,1) double {mustBeInteger, mustBePositive}
-                numlags    (1,1) double {mustBeInteger, mustBePositive}
-                ppsi       (1,:) double {mustBePositive}
+                spec              (1,1) minnesotamniwSpec
+                numseries         (1,1) double {mustBeInteger, mustBePositive}
+                numlags           (1,1) double {mustBeInteger, mustBePositive}
+                residualVariances (1,:) double {mustBePositive}
                 opts.IncludeConstant
                 opts.IncludeTrend
                 opts.NumPredictors
@@ -174,19 +174,19 @@ classdef minnesotamniwSpec
             end
             args = namedargs2cell(opts);
             mdl = minnesotamniwbvarm(numseries, numlags, args{:}, ...
-                ppsi      = ppsi, ...
-                lambda1   = spec.lambda1, ...
-                lambda3   = spec.lambda3, ...
-                lambda4   = spec.lambda4, ...
-                lambda5   = spec.lambda5, ...
-                Vc        = spec.Vc, ...
-                PriorMean = spec.PriorMean);
+                ResidualVariances = residualVariances, ...
+                lambda1           = spec.lambda1, ...
+                lambda3           = spec.lambda3, ...
+                lambda4           = spec.lambda4, ...
+                lambda5           = spec.lambda5, ...
+                Vc                = spec.Vc, ...
+                PriorMean         = spec.PriorMean);
         end
 
-        function lp = logHyperprior(spec, priorcoef, ppsi)
+        function lp = logHyperprior(spec, priorcoef, residualVariances)
             %LOGHYPERPRIOR Log prior density on the Minnesota hyperparameters.
             %   lp = spec.logHyperprior(priorcoef)        % lambdas only
-            %   lp = spec.logHyperprior(priorcoef, ppsi)  % lambdas + psi
+            %   lp = spec.logHyperprior(priorcoef, residualVariances)
             %
             %   Returns the POSITIVE log density log p(lambda1, lambda4,
             %   lambda5, [psi]). Needs only the spec's scalar hyperparameter
@@ -213,9 +213,9 @@ classdef minnesotamniwSpec
             %   parameter). A dummy switched off (Inf) contributes nothing even
             %   if its priorcoef field is present.
             arguments
-                spec      (1,1) minnesotaSpec
+                spec      (1,1) minnesotamniwSpec
                 priorcoef (1,1) struct
-                ppsi      (1,:) double = []
+                residualVariances (1,:) double = []
             end
 
             if ~spec.isResolved()
@@ -241,9 +241,9 @@ classdef minnesotamniwSpec
                     spec.lambda5, priorcoef.lambda5.k, priorcoef.lambda5.theta);
             end
 
-            if isfield(priorcoef, "psi") && ~isempty(ppsi)
+            if isfield(priorcoef, "psi") && ~isempty(residualVariances)
                 lp = lp + sum(minnesotamniwSpec.invGammaLogPdf( ...
-                    ppsi, priorcoef.psi.alpha, priorcoef.psi.beta));
+                    residualVariances, priorcoef.psi.alpha, priorcoef.psi.beta));
             end
         end
 

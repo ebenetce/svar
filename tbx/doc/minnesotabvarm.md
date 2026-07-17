@@ -1,9 +1,9 @@
-# minnesotabvarm
+# minnesotamniwbvarm
 
-Conjugate Minnesota prior for Bayesian VAR models.
+Conjugate Matrix-Normal-Inverse-Wishart Minnesota prior for Bayesian VAR models.
 
-The `minnesotabvarm` model object specifies a Litterman-style Minnesota prior
-in the `conjugatebvarm` parameterization. The constructor is data-free: it
+The `minnesotamniwbvarm` model object specifies a Litterman-style Minnesota
+prior in the `conjugatebvarm` parameterization. The constructor is data-free: it
 requires precomputed per-series residual variances and stores only the prior
 hyperparameters and reduced-form model layout.
 
@@ -12,19 +12,19 @@ hyperparameters and reduced-form model layout.
 ### Syntax
 
 ```matlab
-PriorMdl = minnesotabvarm(numseries,numlags,ppsi=psi)
-PriorMdl = minnesotabvarm(numseries,numlags,ppsi=psi,Name=Value)
+PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi)
+PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi,Name=Value)
 ```
 
 ### Description
 
-`PriorMdl = minnesotabvarm(numseries,numlags,ppsi=psi)` creates a Minnesota
-prior for a VAR model with `numseries` response variables and `numlags`
-autoregressive lags. `psi` is a row vector of residual variance estimates, one
-per response series.
+`PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi)`
+creates a Minnesota prior for a VAR model with `numseries` response variables
+and `numlags` autoregressive lags. `psi` is a row vector of residual variance
+estimates, one per response series.
 
-`PriorMdl = minnesotabvarm(numseries,numlags,ppsi=psi,Name=Value)` sets
-Minnesota hyperparameters and inherited `conjugatebvarm` model options.
+`PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi,Name=Value)`
+sets Minnesota hyperparameters and inherited `conjugatebvarm` model options.
 
 ### Input Arguments
 
@@ -36,7 +36,7 @@ Minnesota hyperparameters and inherited `conjugatebvarm` model options.
 
 ### Name-Value Arguments
 
-`ppsi` - Per-series residual variances
+`ResidualVariances` - Per-series residual variances
 : Positive numeric vector with `numseries` elements. This argument is required.
 
 `lambda1` - Overall tightness
@@ -75,7 +75,7 @@ Minnesota hyperparameters and inherited `conjugatebvarm` model options.
 
 ## Properties
 
-`ppsi` - Per-series residual variances
+`ResidualVariances` - Per-series residual variances
 : Row vector used as the prior scale.
 
 `lambda1` - Overall Minnesota tightness
@@ -137,7 +137,8 @@ Estimate residual variances once, then build the prior.
 ```matlab
 numLags = 4;
 psi = estimateResidualVariances(Y,numLags,Method="conditional");
-PriorMdl = minnesotabvarm(size(Y,2),numLags,ppsi=psi);
+PriorMdl = minnesotamniwbvarm(size(Y,2),numLags, ...
+    ResidualVariances=psi);
 ```
 
 ### Estimate a Posterior
@@ -152,7 +153,7 @@ Use finite values for `lambda4` and `lambda5` to activate the
 sum-of-coefficients and dummy-initial-observation priors.
 
 ```matlab
-PriorMdl = minnesotabvarm(size(Y,2),4,ppsi=psi, ...
+PriorMdl = minnesotamniwbvarm(size(Y,2),4,ResidualVariances=psi, ...
     lambda4=10,lambda5=5);
 ```
 
@@ -166,19 +167,19 @@ obj = PriorMdl.negativeLogMarginalLikelihood(Y);
 
 ### Data-Free Construction
 
-The constructor takes `ppsi`, not the response data `Y`. This keeps the base
-prior reusable and makes hyperparameter tuning cheaper: compute the residual
-variance scale once, rebuild candidate priors, and evaluate each candidate's
-marginal likelihood.
+The constructor takes `ResidualVariances`, not the response data `Y`. This
+keeps the base prior reusable and makes hyperparameter tuning cheaper: compute
+the residual variance scale once, rebuild candidate priors, and evaluate each
+candidate's marginal likelihood.
 
 ### Dummy Priors
 
 The sum-of-coefficients and dummy-initial-observation priors depend on the data.
-`minnesotabvarm` applies them inside `estimate`, `simulate`, `forecast`, and the
-marginal-likelihood methods, where data are legitimately available. Setting
-`lambda4=Inf` or `lambda5=Inf` disables the corresponding dummy rows.
+`minnesotamniwbvarm` applies them inside `estimate`, `simulate`, `forecast`,
+and the marginal-likelihood methods, where data are legitimately available.
+Setting `lambda4=Inf` or `lambda5=Inf` disables the corresponding dummy rows.
 
 ## See Also
 
-`minnesotaSpec`, `estimateResidualVariances`, `conjugatebvarm`, `weakbvarm`,
-`uniformirbvarm`
+`minnesotaSpec`, `minnesotamniwbvarm`, `estimateResidualVariances`,
+`conjugatebvarm`, `weakbvarm`, `uniformirbvarm`

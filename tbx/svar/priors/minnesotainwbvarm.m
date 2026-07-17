@@ -1,4 +1,4 @@
-classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
+classdef minnesotainwbvarm < semiconjugatebvarm & minnesotabvarm & matlab.mixin.CustomDisplay
     %MINNESOTAINWBVARM Independent Normal-Wishart Minnesota prior for a BVAR.
     %
     %   A subclass of SEMICONJUGATEBVARM implementing the Independent
@@ -31,9 +31,9 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
     %
     %   Design contract (same spirit as MINNESOTABVARM, adapted to INW)
     %   ------------------------------------------------------------------
-    %   * The constructor is data-free: it takes a precomputed ppsi vector,
-    %     not Y (see ESTIMATERESIDUALVARIANCES), so the object is a light,
-    %     reusable recipe.
+    %   * The constructor is data-free: it takes precomputed residual
+    %     variances, not Y (see ESTIMATERESIDUALVARIANCES), so the object is
+    %     a light, reusable recipe.
     %   * The object remembers its hyperparameters as read-only properties.
     %   * estimate() is a THIN passthrough to SEMICONJUGATEBVARM's Gibbs
     %     sampler. Set rng() before calling - the sampler is stochastic, and
@@ -70,12 +70,7 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
     %   sanity check when comparing the two classes on the same data.
 
     properties (SetAccess = private)
-        ppsi      (1,:) double   % per-series residual variances (the prior scale)
-        lambda1   (1,1) double   % overall tightness
         lambda2   (1,1) double   % cross-variable relative tightness (FREE here)
-        lambda3   (1,1) double   % lag-decay exponent
-        Vc        (1,1) double   % prior variance of constant / trend
-        PriorMean (1,:) double   % prior mean of own first lag, per series
     end
 
     methods
@@ -84,7 +79,7 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
             arguments
                 numseries (1,1) double {mustBeInteger, mustBePositive}
                 numlags   (1,1) double {mustBeInteger, mustBePositive}
-                nvp.ppsi      (1,:) double {mustBePositive}
+                nvp.ResidualVariances (1,:) double {mustBePositive} = []
                 nvp.lambda1   (1,1) double {mustBePositive}    = 0.2
                 nvp.lambda2   (1,1) double {mustBePositive}    = 0.5
                 nvp.lambda3   (1,1) double {mustBeNonnegative} = 1
@@ -97,34 +92,18 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
                 nvp2.SeriesNames
             end
 
-            if ~isfield(nvp, "ppsi") || isempty(nvp.ppsi)
-                error("inwbvarm:needPpsi", ...
-                    "ppsi (one residual variance per series) is required.");
-            end
-            if numel(nvp.ppsi) ~= numseries
-                error("inwbvarm:ppsiSize", ...
-                    "ppsi must have %d elements, one per series.", numseries);
-            end
-
             args = namedargs2cell(nvp2);
             obj  = obj@semiconjugatebvarm(numseries, numlags, args{:});
 
-            if isempty(nvp.PriorMean)
-                priorMean = ones(1, numseries);
-            else
-                if numel(nvp.PriorMean) ~= numseries
-                    error("inwbvarm:priorMeanSize", ...
-                        "PriorMean must have %d elements, one per series.", numseries);
-                end
-                priorMean = reshape(nvp.PriorMean, 1, numseries);
-            end
+            [residualVariances, priorMean] = obj.validateMinnesotaInputs( ...
+                nvp.ResidualVariances, nvp.PriorMean, "minnesotainwbvarm");
 
-            obj.ppsi      = reshape(nvp.ppsi, 1, numseries);
-            obj.lambda1   = nvp.lambda1;
-            obj.lambda2   = nvp.lambda2;
-            obj.lambda3   = nvp.lambda3;
-            obj.Vc        = nvp.Vc;
-            obj.PriorMean = priorMean;
+            obj.ResidualVariances = residualVariances;
+            obj.lambda1           = nvp.lambda1;
+            obj.lambda2           = nvp.lambda2;
+            obj.lambda3           = nvp.lambda3;
+            obj.Vc                = nvp.Vc;
+            obj.PriorMean         = priorMean;
 
             [obj.Mu, obj.V, obj.Omega, obj.DoF] = obj.buildIndependentPrior();
         end
@@ -135,48 +114,43 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
     methods (Access = private)
 
         function [Mu, V, Omega, DoF] = buildIndependentPrior(obj)
-            %BUILDINDEPENDENTPRIOR INW Minnesota moments from ppsi + hyperparameters.
+            %BUILDINDEPENDENTPRIOR INW Minnesota moments from residual variances.
             %   V is the FULL (m*n)-by-(m*n) diagonal coefficient covariance
             %   (no Kronecker link to Omega), indexed directly over
             %   (regressor, target) pairs so own/cross shrinkage can differ.
             %   Coefficient layout matches conjugatebvarm/semiconjugatebvarm:
             %     vec([Phi1 ... PhiP  c  delta  B]'), an m-by-n matrix.
+            n     = obj.NumSeries;
+            DoF   = n + 2;              % independent IW prior on Sigma, same
+            Omega = diag(obj.ResidualVariances); % minimal-informative convention as
+            % MINNESOTABVARM (see its header).
+
+            Mu = obj.buildMinnesotaPriorMean();
+            V  = obj.buildIndependentCoefficientCovariance(obj.lambda2);
+        end
+
+        function V = buildIndependentCoefficientCovariance(obj, lambda2)
             n   = obj.NumSeries;
             P   = obj.P;
             mm  = obj.m;
-            psi = obj.ppsi(:);
+            psi = obj.ResidualVariances(:);
 
-            DoF   = n + 2;              % independent IW prior on Sigma, same
-            Omega = diag(psi);          % minimal-informative convention as
-            % MINNESOTABVARM (see its header).
-
-            MuMat         = zeros(mm, n);
-            MuMat(1:n, :) = diag(obj.PriorMean);
-            Mu            = MuMat(:);
-
-            % Full (mm*n)-length diagonal of V, indexed by (regressor r,
-            % target i) via MATLAB's column-major vec ordering: index =
-            % (i-1)*mm + r, matching vec(B) for an mm-by-n coefficient matrix.
             vDiag = zeros(mm*n, 1);
-
-            for i = 1:n                                   % target equation
-                for r = 1:mm                               % regressor row
+            for i = 1:n
+                for r = 1:mm
                     if r <= P*n
                         lag    = ceil(r / n);
-                        source = mod(r - 1, n) + 1;         % source variable k
+                        source = mod(r - 1, n) + 1;
                         crossFactor = 1;
                         if source ~= i
-                            crossFactor = obj.lambda2^2;
+                            crossFactor = lambda2^2;
                         end
                         variance = crossFactor * obj.lambda1^2 ...
                             / lag^(2*obj.lambda3) * (psi(i) / psi(source));
                     else
-                        % constant / trend / predictor rows: no own/cross
-                        % concept, flat Vc for every target (as in
-                        % MINNESOTABVARM).
                         variance = obj.Vc;
                     end
-                    vDiag((i-1)*mm + r) = variance;
+                    vDiag((i - 1)*mm + r) = variance;
                 end
             end
 
@@ -190,9 +164,9 @@ classdef minnesotainwbvarm < semiconjugatebvarm & matlab.mixin.CustomDisplay
 
         function displayScalarObject(obj)
             disp(matlab.mixin.CustomDisplay.getSimpleHeader(obj));
-            base  = {'NumSeries','P','ppsi','lambda1','lambda2','lambda3', ...
+            base  = {'NumSeries','P','ResidualVariances','lambda1','lambda2','lambda3', ...
                 'Vc','PriorMean'};
-            group = matlab.mixin.util.PropertyGroup(base);
+            group = obj.minnesotaPropertyGroup(base);
             matlab.mixin.CustomDisplay.displayPropertyGroups(obj, group);
         end
 

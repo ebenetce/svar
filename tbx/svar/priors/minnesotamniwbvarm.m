@@ -1,17 +1,17 @@
-classdef minnesotamniwbvarm < conjugatebvarm & matlab.mixin.CustomDisplay
-    %MINNESOTABVARM Conjugate Minnesota (Litterman) prior for a Bayesian VAR.
+classdef minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.mixin.CustomDisplay
+    %MINNESOTAMNIWBVARM Conjugate Minnesota prior for a Bayesian VAR.
     %
     %   A thin subclass of CONJUGATEBVARM whose constructor materialises a
     %   Litterman-shaped Matrix-Normal-Inverse-Wishart prior from a residual
-    %   variance vector (ppsi) and a small set of hyperparameters. It is a
-    %   *base prior* only: it never stores the estimation sample Y.
+    %   variance vector (ResidualVariances) and a small set of hyperparameters.
+    %   It is a *base prior* only: it never stores the estimation sample Y.
     %
     %   Design contract
     %   ---------------
-    %   * The constructor is data-free. It takes a precomputed ppsi vector,
-    %     not Y, so the object is a light, reusable recipe and the GLP-style
-    %     optimiser can rebuild it cheaply for each candidate hyperparameter
-    %     set without refitting anything.
+    %   * The constructor is data-free. It takes precomputed residual
+    %     variances, not Y, so the object is a light, reusable recipe and the
+    %     GLP-style optimiser can rebuild it cheaply for each candidate
+    %     hyperparameter set without refitting anything.
     %   * The object remembers its hyperparameters as read-only properties,
     %     so it can be inspected, displayed, and re-materialised with one
     %     field changed.
@@ -34,7 +34,7 @@ classdef minnesotamniwbvarm < conjugatebvarm & matlab.mixin.CustomDisplay
     %       lambda4  sum-of-coefficients tightness         (paper mu; Inf = off)
     %       lambda5  dummy-initial-observation tightness   (paper delta; Inf = off)
     %       Vc       prior variance of the constant / trend
-    %       ppsi     per-series residual variances (the scale the prior needs)
+    %       ResidualVariances  per-series residual variances (the prior scale)
     %
     %   Note on the fixed lambda2. The classic Litterman prior has a second
     %   hyperparameter (cross-variable relative tightness). It is deliberately
@@ -46,19 +46,9 @@ classdef minnesotamniwbvarm < conjugatebvarm & matlab.mixin.CustomDisplay
     %   semiconjugate variant, not this class.
 
     properties (SetAccess = private)
-        ppsi      (1,:) double     % per-series residual variances (the prior scale)
-        lambda1   (1,1) double     % overall tightness (SelfLag)
-        lambda3   (1,1) double     % lag-decay exponent (Decay)
         lambda2   (1,1) double = 1 % cross-variable relative tightness (pinned to 1)
         lambda4   (1,1) double     % sum-of-coefficients tightness (Inf = off)
         lambda5   (1,1) double     % dummy-initial-observation tightness (Inf = off)
-        Vc        (1,1) double     % prior variance of constant / trend
-        PriorMean (1,:) double     % prior mean of own first lag, per series (Center)
-    end
-
-    properties (Dependent, SetAccess = private, Hidden)
-        m       % total coefficients per equation = P*NumSeries + nex
-        nex     % number of exogenous regressors = const + trend + predictors
     end
 
     methods
@@ -67,7 +57,7 @@ classdef minnesotamniwbvarm < conjugatebvarm & matlab.mixin.CustomDisplay
             arguments
                 numseries (1,1) double {mustBeInteger, mustBePositive}
                 numlags   (1,1) double {mustBeInteger, mustBePositive}
-                nvp.ppsi      (1,:) double {mustBePositive}
+                nvp.ResidualVariances (1,:) double {mustBePositive} = []
                 nvp.lambda1   (1,1) double {mustBePositive}    = 0.2
                 nvp.lambda3   (1,1) double {mustBeNonnegative} = 1
                 nvp.lambda4   (1,1) double {mustBePositive}    = Inf
@@ -81,60 +71,28 @@ classdef minnesotamniwbvarm < conjugatebvarm & matlab.mixin.CustomDisplay
                 nvp2.SeriesNames
             end
 
-            % ppsi is required: it is the only piece of data-derived scale the
-            % base prior depends on, and we take it precomputed rather than Y.
-            if ~isfield(nvp, "ppsi") || isempty(nvp.ppsi)
-                error("minnesotabvarm:needPpsi", ...
-                    "ppsi (one residual variance per series) is required.");
-            end
-            if numel(nvp.ppsi) ~= numseries
-                error("minnesotabvarm:ppsiSize", ...
-                    "ppsi must have %d elements, one per series.", numseries);
-            end
-
             % Delegate the structural set-up (SeriesNames, exogenous layout,
             % NumSeries/P bookkeeping) to the conjugate superclass.
             args = namedargs2cell(nvp2);
             obj  = obj@conjugatebvarm(numseries, numlags, args{:});
 
-            % Prior mean of the own first lag: default 1 (random-walk). An
-            % explicit PriorMean overrides the default entirely (set 0 for
-            % stationary / differenced series).
-            if isempty(nvp.PriorMean)
-                priorMean = ones(1, numseries);
-            else
-                if numel(nvp.PriorMean) ~= numseries
-                    error("minnesotabvarm:priorMeanSize", ...
-                        "PriorMean must have %d elements, one per series.", numseries);
-                end
-                priorMean = reshape(nvp.PriorMean, 1, numseries);
-            end
+            [residualVariances, priorMean] = obj.validateMinnesotaInputs( ...
+                nvp.ResidualVariances, nvp.PriorMean, "minnesotabvarm");
 
             % Store the hyperparameters (read-only from here on).
-            obj.ppsi      = reshape(nvp.ppsi, 1, numseries);
-            obj.lambda1   = nvp.lambda1;
-            obj.lambda3   = nvp.lambda3;
-            obj.lambda4   = nvp.lambda4;
-            obj.lambda5   = nvp.lambda5;
-            obj.Vc        = nvp.Vc;
-            obj.PriorMean = priorMean;
+            obj.ResidualVariances = residualVariances;
+            obj.lambda1           = nvp.lambda1;
+            obj.lambda3           = nvp.lambda3;
+            obj.lambda4           = nvp.lambda4;
+            obj.lambda5           = nvp.lambda5;
+            obj.Vc                = nvp.Vc;
+            obj.PriorMean         = priorMean;
 
             % Materialise the BASE prior moments (no dummies, no data).
             [obj.Mu, obj.V, obj.Omega, obj.DoF] = obj.buildBasePrior();
         end
 
     end
-
-    % ---- dependent-property getters -------------------------------------
-    methods
-        function nex = get.nex(obj)
-            nex = obj.IncludeConstant + obj.IncludeTrend + obj.NumPredictors;
-        end
-        function m = get.m(obj)
-            m = obj.P*obj.NumSeries + obj.nex;
-        end
-    end
-
     % ---- public API ------------------------------------------------------
     methods
 
@@ -237,14 +195,14 @@ classdef minnesotamniwbvarm < conjugatebvarm & matlab.mixin.CustomDisplay
     methods (Access = private)
 
         function [Mu, V, Omega, DoF] = buildBasePrior(obj)
-            %BUILDBASEPRIOR Litterman moments from ppsi + hyperparameters.
+            %BUILDBASEPRIOR Litterman moments from residual variances + hyperparameters.
             %   Coefficient layout matches conjugatebvarm:
             %     vec([Phi1 ... PhiP  c  delta  B]'), i.e. an m-by-n matrix,
             %     lag blocks first, then constant, then trend, then predictors.
             n   = obj.NumSeries;
             P   = obj.P;
             mm  = obj.m;
-            psi = obj.ppsi(:);
+            psi = obj.ResidualVariances(:);
 
             % DoF fixed at n+2: the minimal proper IW with a defined mean, the
             % standard Minnesota / GLP choice. Overrides the inherited n+10
@@ -254,9 +212,7 @@ classdef minnesotamniwbvarm < conjugatebvarm & matlab.mixin.CustomDisplay
             Omega = diag(psi);
 
             % Prior mean: own first lag only.
-            MuMat            = zeros(mm, n);
-            MuMat(1:n, :)    = diag(obj.PriorMean);
-            Mu               = MuMat(:);
+            Mu = obj.buildMinnesotaPriorMean();
 
             % Prior covariance factor V (diagonal).
             %   With DoF = n+2 the (DoF-n-1) scaling is 1 by construction, so
@@ -500,9 +456,9 @@ classdef minnesotamniwbvarm < conjugatebvarm & matlab.mixin.CustomDisplay
         function displayScalarObject(obj)
             disp(matlab.mixin.CustomDisplay.getSimpleHeader(obj));
 
-            base  = {'NumSeries','P','ppsi','lambda1','lambda3','lambda4','lambda5','Vc','PriorMean'};
+            base  = {'NumSeries','P','ResidualVariances','lambda1','lambda3','lambda4','lambda5','Vc','PriorMean'};
             
-            group = matlab.mixin.util.PropertyGroup(base);
+            group = obj.minnesotaPropertyGroup(base);
             matlab.mixin.CustomDisplay.displayPropertyGroups(obj, group);
         end
 

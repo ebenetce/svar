@@ -13,8 +13,8 @@ workflows that start from `conjugatebvarm` or `varm` models.
   Uhlig-style reduced-form workflows.
 * [uniformirbvarm](uniformirbvarm.md) - Reduced-form prior induced by uniform
   impulse-response parameters.
-* [minnesotabvarm](minnesotabvarm.md) - Conjugate Minnesota prior with optional
-  dummy-observation priors.
+* [minnesotamniwbvarm](minnesotabvarm.md) - Conjugate MNIW Minnesota prior
+  with optional dummy-observation priors.
 * [minnesotaSpec](minnesotaSpec.md) - Hyperparameter recipe for constructing
   and tuning Minnesota priors.
 

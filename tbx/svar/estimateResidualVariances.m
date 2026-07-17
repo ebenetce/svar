@@ -2,8 +2,8 @@ function psi = estimateResidualVariances(Y, numLags, opts)
 %ESTIMATERESIDUALVARIANCES Per-series residual variance from a univariate AR(P) fit.
 %   psi = ESTIMATERESIDUALVARIANCES(Y, numLags) fits an independent AR(numLags)
 %   to each column of Y and returns each fit's innovations variance as a
-%   1-by-NumSeries row vector - the standard "ppsi" scale consumed by
-%   MINNESOTASPEC.build / MINNESOTABVARM.
+%   1-by-NumSeries row vector - the residual-variance scale consumed by
+%   MINNESOTASPEC.build / MINNESOTAMNIWBVARM.
 %
 %   psi = ESTIMATERESIDUALVARIANCES(..., Method="conditional") uses conditional
 %   maximum likelihood - closed-form, equivalent to OLS on the observed sample,
