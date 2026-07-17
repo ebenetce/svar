@@ -17,17 +17,6 @@ function [mdl, info] = glp(numseries, numlags, Y, ResidualVariances, nvp, nvp2)
 %                 minnesotaSpec() (everything fixed at its default -> no
 %                 lambda is tuned unless you pass a Spec with some field
 %                 given as a range).
-%   PsiBand       Scalar (default 1) -> psi is FIXED at PsiBand * baseline,
-%                 where baseline is the per-series AR(PsiLags) residual
-%                 variance (see PsiLags/PsiMethod below). A 2-element
-%                 [lower upper] -> psi is FREE, one variable per series, each
-%                 bounded to [lower, upper] * that series' baseline - the
-%                 same multiplicative-band convention used historically for
-%                 this search (e.g. [1/100, 100]).
-%   PriorCoef     Struct passed to MINNESOTASPEC.logHyperprior at each
-%                 candidate point. Default empty struct -> pure marginal-
-%                 likelihood (ML) tuning. Supply fields to switch to MAP
-%                 (posterior-mode) tuning - see MINNESOTASPEC.logHyperprior.
 %   IncludeConstant, IncludeTrend, SeriesNames
 %                 Forwarded to MINNESOTASPEC.build / MINNESOTABVARM.
 %                 NumPredictors is not supported (the marginal-likelihood /
@@ -64,8 +53,6 @@ arguments
     Y         {mustBeNonempty}
     ResidualVariances
     nvp.Spec          (1,1) minnesotaBaseSpec = minnesotaSpec("mniw")
-    nvp.PsiBand       (1,:) double {mustBeScalarOrPositiveBounds} = 1    
-    nvp.PriorCoef     (1,1) struct = struct()
     nvp.OptimOptions    = optimoptions("fmincon", ...
         Display = "final", ...
         FiniteDifferenceStepSize = 1e-4, ...
@@ -104,11 +91,16 @@ useHyperprior = ~isempty(fieldnames(nvp.PriorCoef));
 baseSpec         = nvp.Spec;
 [lamX0, lamLB, lamUB, lambdaNames] = baseSpec.pack();
 
-psiFree = numel(nvp.PsiBand) == 2;
+isPsiHyper = isa(ResidualVariances, 'hyperprior');
+psiFree = size(ResidualVariances, 1) == 2 || isPsiHyper;
 if psiFree
-    psiLB = ResidualVariances * nvp.PsiBand(1);
-    psiUB = ResidualVariances * nvp.PsiBand(2);
-    psiX0 = sqrt(psiLB .* psiUB);          % geometric-mean start, per series
+    if isa(ResidualVariances, 'hyperprior')
+        % psiLB = 
+    else
+        psiLB = ResidualVariances(1,:);
+        psiUB = ResidualVariances(2,:);
+        psiX0 = sqrt(psiLB .* psiUB);          % geometric-mean start, per series
+    end
 else
     psiLB = []; psiUB = []; psiX0 = [];
 end
@@ -176,23 +168,4 @@ info = struct( ...
     "FminconOutput",   fminconOutput);
 end
 
-end
-
-function mustBeScalarOrPositiveBounds(x)
-%MUSTBESCALARORPOSITIVEBOUNDS Validator for PsiBand: a positive scalar
-%   (fixed multiplier) or a finite 2-element [lower upper] with lower < upper
-%   (free multiplicative band).
-if numel(x) ~= 1 && numel(x) ~= 2
-    error("glp:invalidPsiBand", ...
-        "PsiBand must be a scalar or a 2-element [lower upper]; got %d elements.", ...
-        numel(x));
-end
-if any(x <= 0) || any(~isfinite(x))
-    error("glp:invalidPsiBand", ...
-        "PsiBand must be finite and positive.");
-end
-if numel(x) == 2 && x(1) >= x(2)
-    error("glp:invalidPsiBand", ...
-        "PsiBand bounds must satisfy lower < upper.");
-end
 end

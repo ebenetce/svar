@@ -52,6 +52,7 @@ classdef hyperprior
         Distribution (1,1) string
         Params       (1,2) double    % [shape scale] (Gamma/IG) or [alpha beta] (Beta)
         Bounds       (1,2) double     
+        X0           (1,1) double
     end
 
     methods
@@ -63,20 +64,27 @@ classdef hyperprior
                 mode (1,1) double {mustBePositive}
                 sd (1,1) double {mustBePositive}
                 nvp.Bounds (1,2) double
-            end
+                nvp.X0 (1,1) double
+            end  
+
             obj.Distribution = distribution;
             [p1, p2] = fromMoments(distribution, mode, sd);
             obj.Params       = [p1, p2];
-
-            if ~isfield(nvp, "Bounds")
+                
+            if ~isfield(nvp, "Bounds")                
+                obj.Bounds = obj.quantileBounds;
+            else
                 if nvp.Bounds(1) >= nvp.Bounds(2)
                     error("hyperpriors:BoundsWrongOrder", "Lower Bounds can't be equal or larger than the Upper Bound")
                 end
-                obj.Bounds = obj.quantileBounds;
-            else
                 obj.Bounds = nvp.Bounds;
             end
-                
+
+            if ~isfield(nvp, "X0")
+                obj.X0 = obj.initialValue;
+            else
+                obj.X0 = nvp.X0;
+            end
         end
 
         function lp = logpdf(obj, x)
@@ -135,7 +143,7 @@ classdef hyperprior
             end
         end
 
-        function x = x0(obj)
+        function x = initialValue(obj)
             %X0 Optimiser starting point: the mode where defined, else median.
             m = obj.modeOf();
             if isfinite(m) && m > 0 && (obj.Distribution ~= "Beta" || m < 1)
