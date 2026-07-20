@@ -46,6 +46,74 @@ classdef (Hidden) minnesotanbvarm < normalbvarm & minnesotabvarm & matlab.mixin.
             obj.V     = obj.buildIndependentCoefficientCovariance(obj.lambda2);
             obj.Sigma = diag(obj.ResidualVariances);
         end
+
+        function [Posterior, Summary] = estimate(obj, Y, opts)
+            %ESTIMATE Analytic fixed-Sigma Normal posterior.
+            arguments
+                obj
+                Y double {mustBeNonempty}
+                opts.Display
+                opts.X
+                opts.Y0
+            end
+
+            args  = namedargs2cell(opts);
+            [NormalPosterior, Summary] = estimate@normalbvarm(obj, Y, args{:});
+
+            Posterior = normalbvarm(NormalPosterior.NumSeries, NormalPosterior.P, ...
+                Description     = NormalPosterior.Description, ...
+                SeriesNames     = NormalPosterior.SeriesNames, ...
+                IncludeConstant = NormalPosterior.IncludeConstant, ...
+                IncludeTrend    = NormalPosterior.IncludeTrend, ...
+                NumPredictors   = NormalPosterior.NumPredictors, ...
+                Mu              = NormalPosterior.Mu, ...
+                V               = NormalPosterior.V, ...
+                Sigma           = NormalPosterior.Sigma);
+        end
+
+        function [logML, details] = logMarginalLikelihood(obj, Y)
+            %LOGMARGINALLIKELIHOOD log p(Y | hyperparameters).
+            arguments
+                obj
+                Y double {mustBeNonempty}
+            end
+
+            [X, YResponse] = obj.regressionMatrices(Y);
+            numObs = size(YResponse, 1);
+            numSeries = obj.NumSeries;
+            y = YResponse(:);
+
+            design = kron(eye(numSeries), X);
+            priorCovariance = (obj.V + obj.V')/2;
+            innovationCovariance = kron((obj.Sigma + obj.Sigma')/2, eye(numObs));
+            marginalCovariance = innovationCovariance ...
+                + design*priorCovariance*design';
+            marginalCovariance = (marginalCovariance + marginalCovariance')/2;
+
+            details = struct("NumObservations", numObs);
+            try
+                cholFactor = chol(marginalCovariance, "lower");
+                residual = y - design*obj.Mu(:);
+                standardizedResidual = cholFactor \ residual;
+                logDeterminant = 2*sum(log(diag(cholFactor)));
+
+                logML = -0.5*(numel(y)*log(2*pi) ...
+                    + logDeterminant ...
+                    + standardizedResidual'*standardizedResidual);
+
+                if nargout > 1
+                    [posteriorMu, posteriorV] = obj.normalPosteriorMoments( ...
+                        X, YResponse);
+                    details = struct( ...
+                        "NumObservations", numObs, ...
+                        "PosteriorMu", posteriorMu, ...
+                        "PosteriorV", posteriorV);
+                end
+            catch
+                logML = -Inf;
+            end
+        end
+
     end
 
     methods (Access = private)
@@ -75,6 +143,67 @@ classdef (Hidden) minnesotanbvarm < normalbvarm & minnesotabvarm & matlab.mixin.
             end
 
             V = diag(vDiag);
+        end
+
+        function [X, YResponse] = regressionMatrices(obj, Y)
+            %REGRESSIONMATRICES VAR design matrix consistent with Mu and V.
+            obj.validateData(Y);
+            n      = obj.NumSeries;
+            P      = obj.P;
+            mm     = obj.m;
+            numObs = size(Y, 1);
+            T      = numObs - P;
+
+            X = zeros(T, mm);
+            for lag = 1:P
+                cols = (lag - 1)*n + (1:n);
+                X(:, cols) = Y((P + 1 - lag):(numObs - lag), :);
+            end
+            col = P*n;
+            if obj.IncludeConstant
+                col = col + 1;
+                X(:, col) = 1;
+            end
+            if obj.IncludeTrend
+                col = col + 1;
+                X(:, col) = (1:T)';
+            end
+            if obj.NumPredictors > 0
+                error("minnesotanbvarm:predictorsUnsupported", ...
+                    ["The marginal likelihood path needs the exogenous " ...
+                     "regressors, which this prior does not store. Estimate " ...
+                     "with the X name-value argument instead."]);
+            end
+
+            YResponse = Y((P + 1):numObs, :);
+        end
+
+        function [posteriorMu, posteriorV] = normalPosteriorMoments(obj, X, YResponse)
+            numObs = size(YResponse, 1);
+            n = obj.NumSeries;
+            design = kron(eye(n), X);
+            y = YResponse(:);
+
+            priorCovariance = (obj.V + obj.V')/2;
+            innovationPrecision = kron(obj.Sigma \ eye(n), eye(numObs));
+            priorPrecision = priorCovariance \ eye(size(priorCovariance, 1));
+            posteriorPrecision = priorPrecision ...
+                + design'*innovationPrecision*design;
+            posteriorV = posteriorPrecision \ eye(size(posteriorPrecision, 1));
+            posteriorV = (posteriorV + posteriorV')/2;
+            posteriorMu = posteriorV*(priorPrecision*obj.Mu(:) ...
+                + design'*innovationPrecision*y);
+        end
+
+        function validateData(obj, Y)
+            if size(Y, 2) ~= obj.NumSeries
+                error("minnesotanbvarm:invalidData", ...
+                    "Y must have %d columns, one per series.", obj.NumSeries);
+            end
+            if size(Y, 1) <= obj.P
+                error("minnesotanbvarm:invalidData", ...
+                    "Y must have more rows than the lag order P = %d.", obj.P);
+            end
         end
     end
 

@@ -141,16 +141,6 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.
                 prior.Mu, prior.V, prior.Omega, prior.DoF, X, YResponse, obj.NumSeries);
         end
 
-        function negLogML = negativeLogMarginalLikelihood(obj, Y)
-            %NEGATIVELOGMARGINALLIKELIHOOD Convenience objective for optimisers.
-            negLogML = -obj.logMarginalLikelihood(Y);
-        end
-
-        function ml = marginalLikelihood(obj, Y)
-            %MARGINALLIKELIHOOD p(Y | hyperparameters).
-            ml = exp(obj.logMarginalLikelihood(Y));
-        end
-
         function varargout = simulate(obj, Y, opts)
             %SIMULATE Draw from the (dummy-augmented) prior given data.
             arguments

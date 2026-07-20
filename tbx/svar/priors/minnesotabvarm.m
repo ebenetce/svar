@@ -28,6 +28,16 @@ classdef (Abstract, Hidden) minnesotabvarm
         function m = get.m(obj)
             m = obj.P*obj.NumSeries + obj.nex;
         end
+
+        function negLogML = negativeLogMarginalLikelihood(obj, Y)
+            %NEGATIVELOGMARGINALLIKELIHOOD Convenience objective for optimisers.
+            negLogML = -obj.logMarginalLikelihood(Y);
+        end
+
+        function ml = marginalLikelihood(obj, Y)
+            %MARGINALLIKELIHOOD p(Y | hyperparameters).
+            ml = exp(obj.logMarginalLikelihood(Y));
+        end
     end
 
     methods (Access = protected)

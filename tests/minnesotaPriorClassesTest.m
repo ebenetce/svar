@@ -64,6 +64,31 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
                 [0.04; 0.0025; 1e4; 0.04; 0.04; 1e4], AbsTol=1e-14);
         end
 
+        function normalPriorEstimateReturnsNormalPosterior(testCase)
+            prior = minnesotanbvarm(2, 1, ResidualVariances=[1 4], ...
+                lambda1=0.2, lambda2=0.5, lambda3=1);
+            Y = minnesotaPriorClassesTest.normalLikelihoodData();
+
+            posterior = estimate(prior, Y, Display="off");
+
+            testCase.verifyClass(posterior, "normalbvarm");
+        end
+
+        function normalPriorMarginalLikelihoodMethodsAgree(testCase)
+            prior = minnesotanbvarm(2, 1, ResidualVariances=[1 4], ...
+                lambda1=0.2, lambda2=0.5, lambda3=1);
+            Y = minnesotaPriorClassesTest.normalLikelihoodData();
+
+            [logML, details] = logMarginalLikelihood(prior, Y);
+            negLogML = negativeLogMarginalLikelihood(prior, Y);
+            ml = marginalLikelihood(prior, Y);
+
+            testCase.verifyTrue(isfinite(logML));
+            testCase.verifyEqual(details.NumObservations, size(Y, 1) - prior.P);
+            testCase.verifyEqual(negLogML, -logML, AbsTol=1e-12);
+            testCase.verifyEqual(ml, exp(logML), AbsTol=1e-12);
+        end
+
         function factoryDispatchesExpectedSpecClasses(testCase)
             defaultSpec = minnesotaSpec();
             mniwSpec = minnesotaSpec("mniw");
@@ -191,6 +216,18 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
             catch ME
                 message = string(ME.message);
             end
+        end
+
+        function Y = normalLikelihoodData()
+            Y = [ ...
+                1.0  2.0
+                1.4  2.1
+                1.9  2.5
+                2.2  2.9
+                2.8  3.0
+                3.1  3.4
+                3.6  3.7
+                4.0  4.1];
         end
     end
 end

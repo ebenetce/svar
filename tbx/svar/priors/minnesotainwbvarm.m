@@ -108,6 +108,9 @@ classdef (Hidden) minnesotainwbvarm < semiconjugatebvarm & minnesotabvarm & matl
             [obj.Mu, obj.V, obj.Omega, obj.DoF] = obj.buildIndependentPrior();
         end
 
+        % function estimate
+        % end
+
     end
 
     % ---- prior construction (data-free) -----------------------------------
