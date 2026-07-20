@@ -78,32 +78,42 @@ classdef (Hidden) minnesotanbvarm < normalbvarm & minnesotabvarm & matlab.mixin.
                 Y double {mustBeNonempty}
             end
 
-            [X, YResponse] = obj.regressionMatrices(Y);
-            numObs = size(YResponse, 1);
-            numSeries = obj.NumSeries;
-            y = YResponse(:);
-
-            design = kron(eye(numSeries), X);
-            priorCovariance = (obj.V + obj.V')/2;
-            innovationCovariance = kron((obj.Sigma + obj.Sigma')/2, eye(numObs));
-            marginalCovariance = innovationCovariance ...
-                + design*priorCovariance*design';
-            marginalCovariance = (marginalCovariance + marginalCovariance')/2;
-
+            [XX, XY, YY, numObs] = obj.minnesotaSufficientStatistics(Y, ...
+                "minnesotanbvarm");
             details = struct("NumObservations", numObs);
             try
-                cholFactor = chol(marginalCovariance, "lower");
-                residual = y - design*obj.Mu(:);
-                standardizedResidual = cholFactor \ residual;
-                logDeterminant = 2*sum(log(diag(cholFactor)));
+                [posteriorMu, posteriorV, posteriorPrecision] = ...
+                    obj.normalPosteriorMoments(XX, XY);
 
-                logML = -0.5*(numel(y)*log(2*pi) ...
-                    + logDeterminant ...
-                    + standardizedResidual'*standardizedResidual);
+                numSeries = obj.NumSeries;
+                sigma = (obj.Sigma + obj.Sigma')/2;
+                sigmaInv = sigma \ eye(numSeries);
+                priorCovariance = (obj.V + obj.V')/2;
+                priorPrecision = priorCovariance \ eye(size(priorCovariance, 1));
+
+                sigmaFactor = chol(sigma, "lower");
+                priorFactor = chol(priorCovariance, "lower");
+                posteriorPrecisionFactor = chol( ...
+                    (posteriorPrecision + posteriorPrecision')/2, "lower");
+
+                logDetSigma = 2*sum(log(diag(sigmaFactor)));
+                logDetPrior = 2*sum(log(diag(priorFactor)));
+                logDetPosteriorPrecision = 2*sum(log(diag(posteriorPrecisionFactor)));
+
+                priorMean = obj.Mu(:);
+                dataQuadratic = trace(sigmaInv*YY);
+                priorQuadratic = priorMean'*(priorPrecision*priorMean);
+                posteriorQuadratic = posteriorMu'*(posteriorPrecision*posteriorMu);
+
+                logML = -0.5*(numObs*numSeries*log(2*pi) ...
+                    + numObs*logDetSigma ...
+                    + logDetPrior ...
+                    + logDetPosteriorPrecision ...
+                    + dataQuadratic ...
+                    + priorQuadratic ...
+                    - posteriorQuadratic);
 
                 if nargout > 1
-                    [posteriorMu, posteriorV] = obj.normalPosteriorMoments( ...
-                        X, YResponse);
                     details = struct( ...
                         "NumObservations", numObs, ...
                         "PosteriorMu", posteriorMu, ...
@@ -145,65 +155,18 @@ classdef (Hidden) minnesotanbvarm < normalbvarm & minnesotabvarm & matlab.mixin.
             V = diag(vDiag);
         end
 
-        function [X, YResponse] = regressionMatrices(obj, Y)
-            %REGRESSIONMATRICES VAR design matrix consistent with Mu and V.
-            obj.validateData(Y);
-            n      = obj.NumSeries;
-            P      = obj.P;
-            mm     = obj.m;
-            numObs = size(Y, 1);
-            T      = numObs - P;
-
-            X = zeros(T, mm);
-            for lag = 1:P
-                cols = (lag - 1)*n + (1:n);
-                X(:, cols) = Y((P + 1 - lag):(numObs - lag), :);
-            end
-            col = P*n;
-            if obj.IncludeConstant
-                col = col + 1;
-                X(:, col) = 1;
-            end
-            if obj.IncludeTrend
-                col = col + 1;
-                X(:, col) = (1:T)';
-            end
-            if obj.NumPredictors > 0
-                error("minnesotanbvarm:predictorsUnsupported", ...
-                    ["The marginal likelihood path needs the exogenous " ...
-                     "regressors, which this prior does not store. Estimate " ...
-                     "with the X name-value argument instead."]);
-            end
-
-            YResponse = Y((P + 1):numObs, :);
-        end
-
-        function [posteriorMu, posteriorV] = normalPosteriorMoments(obj, X, YResponse)
-            numObs = size(YResponse, 1);
+        function [posteriorMu, posteriorV, posteriorPrecision] = normalPosteriorMoments(obj, XX, XY)
             n = obj.NumSeries;
-            design = kron(eye(n), X);
-            y = YResponse(:);
-
             priorCovariance = (obj.V + obj.V')/2;
-            innovationPrecision = kron(obj.Sigma \ eye(n), eye(numObs));
+            sigmaInv = obj.Sigma \ eye(n);
             priorPrecision = priorCovariance \ eye(size(priorCovariance, 1));
             posteriorPrecision = priorPrecision ...
-                + design'*innovationPrecision*design;
+                + kron(sigmaInv, XX);
             posteriorV = posteriorPrecision \ eye(size(posteriorPrecision, 1));
             posteriorV = (posteriorV + posteriorV')/2;
+            dataMoment = XY*sigmaInv;
             posteriorMu = posteriorV*(priorPrecision*obj.Mu(:) ...
-                + design'*innovationPrecision*y);
-        end
-
-        function validateData(obj, Y)
-            if size(Y, 2) ~= obj.NumSeries
-                error("minnesotanbvarm:invalidData", ...
-                    "Y must have %d columns, one per series.", obj.NumSeries);
-            end
-            if size(Y, 1) <= obj.P
-                error("minnesotanbvarm:invalidData", ...
-                    "Y must have more rows than the lag order P = %d.", obj.P);
-            end
+                + dataMoment(:));
         end
     end
 

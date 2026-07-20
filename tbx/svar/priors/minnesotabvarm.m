@@ -77,5 +77,30 @@ classdef (Abstract, Hidden) minnesotabvarm
         function group = minnesotaPropertyGroup(~, propertyNames)
             group = matlab.mixin.util.PropertyGroup(cellstr(propertyNames));
         end
+
+        function [XX, XY, YY, numObs] = minnesotaSufficientStatistics(obj, Y, errorPrefix)
+            obj.validateMinnesotaData(Y, errorPrefix);
+            if obj.NumPredictors > 0
+                error(errorPrefix + ":predictorsUnsupported", ...
+                    ["The marginal likelihood path needs the exogenous " ...
+                     "regressors, which this prior does not store. Estimate " ...
+                     "with the X name-value argument instead."]);
+            end
+
+            [XX, XY, YY, numObs] = bvar.sufficientStatistics(Y, [], [], ...
+                obj.NumSeries, obj.P, obj.IncludeConstant, obj.IncludeTrend, ...
+                obj.NumPredictors, false);
+        end
+
+        function validateMinnesotaData(obj, Y, errorPrefix)
+            if size(Y, 2) ~= obj.NumSeries
+                error(errorPrefix + ":invalidData", ...
+                    "Y must have %d columns, one per series.", obj.NumSeries);
+            end
+            if size(Y, 1) <= obj.P
+                error(errorPrefix + ":invalidData", ...
+                    "Y must have more rows than the lag order P = %d.", obj.P);
+            end
+        end
     end
 end

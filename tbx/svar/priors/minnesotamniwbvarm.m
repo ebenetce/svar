@@ -136,9 +136,11 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.
                 Y double {mustBeNonempty}
             end
             prior          = obj.applyDummies(Y);
-            [X, YResponse] = obj.regressionMatrices(Y);
+            [XX, XY, YY, numObs] = obj.minnesotaSufficientStatistics(Y, ...
+                "minnesotamniwbvarm");
             [logML, details] = minnesotamniwbvarm.conjugateLogML( ...
-                prior.Mu, prior.V, prior.Omega, prior.DoF, X, YResponse, obj.NumSeries);
+                prior.Mu, prior.V, prior.Omega, prior.DoF, ...
+                XX, XY, YY, numObs, obj.NumSeries);
         end
 
         function varargout = simulate(obj, Y, opts)
@@ -243,7 +245,7 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.
             %DUMMYMATRICES Sum-of-coefficients and initial-observation dummies.
             %   Built only for finite lambda4 / lambda5 (Inf = off). ybar is
             %   the mean of the first P observations of each series.
-            obj.validateData(Y);
+            obj.validateMinnesotaData(Y, "minnesotamniwbvarm");
             n  = obj.NumSeries;
             P  = obj.P;
             mm = obj.m;
@@ -285,50 +287,6 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.
             end
         end
 
-        function [X, YResponse] = regressionMatrices(obj, Y)
-            %REGRESSIONMATRICES VAR design matrix consistent with the prior layout.
-            obj.validateData(Y);
-            n      = obj.NumSeries;
-            P      = obj.P;
-            mm     = obj.m;
-            numObs = size(Y, 1);
-            T      = numObs - P;
-
-            X = zeros(T, mm);
-            for lag = 1:P
-                cols = (lag-1)*n + (1:n);
-                X(:, cols) = Y((P + 1 - lag):(numObs - lag), :);
-            end
-            col = P*n;
-            if obj.IncludeConstant
-                col = col + 1;
-                X(:, col) = 1;
-            end
-            if obj.IncludeTrend
-                col = col + 1;
-                X(:, col) = (1:T)';
-            end
-            if obj.NumPredictors > 0
-                error("minnesotamniwbvarm:predictorsUnsupported", ...
-                    ["The marginal likelihood / dummy path needs the exogenous " ...
-                     "regressors, which this prior does not store. Estimate with " ...
-                     "the X name-value argument instead."]);
-            end
-
-            YResponse = Y((P + 1):numObs, :);
-        end
-
-        function validateData(obj, Y)
-            if size(Y, 2) ~= obj.NumSeries
-                error("minnesotamniwbvarm:invalidData", ...
-                    "Y must have %d columns, one per series.", obj.NumSeries);
-            end
-            if size(Y, 1) <= obj.P
-                error("minnesotamniwbvarm:invalidData", ...
-                    "Y must have more rows than the lag order P = %d.", obj.P);
-            end
-        end
-
     end
 
     % ---- shared conjugate NIW algebra -----------------------------------
@@ -353,10 +311,10 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.
             DoFOut   = DoF + size(Yobs, 1);
         end
 
-        function [logML, details] = conjugateLogML(Mu, V, Omega, DoF, X, Yobs, n)
+        function [logML, details] = conjugateLogML(Mu, V, Omega, DoF, XX, XY, YY, numObs, n)
             %CONJUGATELOGML Analytic log marginal likelihood for the conjugate VAR.
-            %   Evaluated against the supplied (dummy-augmented) prior using the
-            %   real data (X, Yobs) only.
+            %   Evaluated against the supplied (dummy-augmented) prior using
+            %   the real-data sufficient statistics only.
             %
             %   Numerics: uses the stable ratio-of-determinants ("eig + 1")
             %   form. The two log-det differences that appear in the marginal
@@ -367,7 +325,6 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.
             %   collapsed prior) returns logML = -Inf, which an optimiser reads
             %   as "this hyperparameter set is very bad" rather than throwing.
             k        = size(V, 1);
-            numObs   = size(Yobs, 1);
             priorDoF = DoF;
             postDoF  = DoF + numObs;
 
@@ -376,16 +333,15 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.
             try
                 B0    = reshape(Mu, k, n);
                 V0inv = V \ eye(k);
-                prec  = V0inv + X'*X;
-                Bn    = prec \ (V0inv*B0 + X'*Yobs);
+                prec  = V0inv + XX;
+                Bn    = prec \ (V0inv*B0 + XY);
 
-                % Posterior scale as prior scale plus a manifestly PSD
-                % increment (residual SS at the posterior mean + prior-mean
-                % shift). Avoids the cancellation-prone
-                %   Omega + Y'Y + B0'V0inv B0 - Bn'prec Bn.
-                resid = Yobs - X*Bn;
+                % Posterior scale as prior scale plus the residual SS at the
+                % posterior mean and the prior-mean shift penalty.
+                resid = YY - Bn'*XY - XY'*Bn + Bn'*XX*Bn;
+                resid = (resid + resid')/2;
                 shift = Bn - B0;
-                incr  = resid'*resid + shift'*(V0inv*shift);
+                incr  = resid + shift'*(V0inv*shift);
                 incr  = (incr + incr')/2;                       % PSD
 
                 % logdet(OmegaN) - logdet(Omega) = sum log( eig(inv(Omega)*incr) + 1 ).
@@ -401,7 +357,7 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.
                 % logdet(Vn) - logdet(V0) = -sum log( eig(X'X * V0) + 1 ).
                 % D D' = V0  =>  aaa = D'(X'X)D is symmetric, eig = eig(X'X V0).
                 D    = chol((V + V')/2, 'lower');
-                aaa  = D'*(X'*X)*D;
+                aaa  = D'*XX*D;
                 ea   = real(eig((aaa + aaa')/2));
                 ea(ea < 0) = 0;
                 sumVRatio = sum(log(ea + 1));
