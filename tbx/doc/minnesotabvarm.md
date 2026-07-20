@@ -1,185 +1,64 @@
-# minnesotamniwbvarm
+# minnesotabvarm
 
-Conjugate Matrix-Normal-Inverse-Wishart Minnesota prior for Bayesian VAR models.
+Abstract shared base class for Minnesota BVAR priors.
 
-The `minnesotamniwbvarm` model object specifies a Litterman-style Minnesota
-prior in the `conjugatebvarm` parameterization. The constructor is data-free: it
-requires precomputed per-series residual variances and stores only the prior
-hyperparameters and reduced-form model layout.
+`minnesotabvarm` stores the hyperparameters and shared helper behavior used by
+the concrete Minnesota prior classes. This class is abstract and hidden;
+construct `minnesotamniwbvarm`, `minnesotainwbvarm`, or `minnesotanbvarm`
+instead.
 
-## Creation
+## Class Details
 
-### Syntax
+`minnesotabvarm` is mixed into the concrete Minnesota model classes. It is not
+an Econometrics Toolbox model superclass by itself. The concrete classes pair it
+with the appropriate Bayesian VAR superclass:
 
-```matlab
-PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi)
-PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi,Name=Value)
-```
-
-### Description
-
-`PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi)`
-creates a Minnesota prior for a VAR model with `numseries` response variables
-and `numlags` autoregressive lags. `psi` is a row vector of residual variance
-estimates, one per response series.
-
-`PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi,Name=Value)`
-sets Minnesota hyperparameters and inherited `conjugatebvarm` model options.
-
-### Input Arguments
-
-`numseries` - Number of response series
-: Positive integer.
-
-`numlags` - Number of autoregressive lags
-: Positive integer.
-
-### Name-Value Arguments
-
-`ResidualVariances` - Per-series residual variances
-: Positive numeric vector with `numseries` elements. This argument is required.
-
-`lambda1` - Overall tightness
-: `0.2` (default) | positive scalar.
-
-`lambda3` - Lag-decay exponent
-: `1` (default) | nonnegative scalar.
-
-`lambda4` - Sum-of-coefficients dummy tightness
-: `Inf` (default) | positive scalar. Set to `Inf` to disable this dummy prior.
-
-`lambda5` - Dummy-initial-observation tightness
-: `Inf` (default) | positive scalar. Set to `Inf` to disable this dummy prior.
-
-`Vc` - Prior variance for deterministic terms
-: `1e4` (default) | positive scalar.
-
-`PriorMean` - Own first-lag prior mean
-: `ones(1,numseries)` (default) | numeric row vector. Use `0` values for series
-  where a stationary prior center is preferred.
-
-`IncludeConstant` - Flag for including model constant
-: `true` (default) | `false`.
-
-`IncludeTrend` - Flag for including linear time trend
-: `false` (default) | `true`.
-
-`NumPredictors` - Number of exogenous predictors
-: `0` (default) | nonnegative integer.
-
-`SeriesNames` - Response series names
-: String vector | cell array of character vectors.
-
-`Description` - Model description
-: String scalar | character vector.
+* `minnesotamniwbvarm` uses `conjugatebvarm`.
+* `minnesotainwbvarm` uses `semiconjugatebvarm`.
+* `minnesotanbvarm` uses `normalbvarm`.
 
 ## Properties
 
 `ResidualVariances` - Per-series residual variances
-: Row vector used as the prior scale.
+: Positive row vector used as the Minnesota variance scale.
 
-`lambda1` - Overall Minnesota tightness
+`lambda1` - Overall tightness
 : Positive scalar.
-
-`lambda2` - Cross-variable relative tightness
-: Fixed at `1`. This prior keeps the conjugate Kronecker structure.
 
 `lambda3` - Lag-decay exponent
 : Nonnegative scalar.
 
-`lambda4` - Sum-of-coefficients dummy tightness
-: Positive scalar or `Inf`.
-
-`lambda5` - Dummy-initial-observation tightness
-: Positive scalar or `Inf`.
-
-`Vc` - Prior variance for constants, trends, and predictors
+`Vc` - Prior variance for deterministic terms
 : Positive scalar.
 
 `PriorMean` - Own first-lag prior mean
 : Row vector with one value per response series.
 
-Inherited `conjugatebvarm` properties such as `NumSeries`, `P`, `SeriesNames`,
-`Mu`, `V`, `Omega`, and `DoF` are also available.
+## Dependent Properties
 
-## Object Functions
+`m` - Number of coefficients per equation
+: Total regressors per equation, equal to lagged response coefficients plus
+  deterministic and predictor regressors.
 
-`estimate`
-: Estimate the dummy-augmented conjugate posterior. The returned posterior is a
-  plain `conjugatebvarm` object.
-
-`logMarginalLikelihood`
-: Evaluate the analytic log marginal likelihood for the hyperparameters.
-
-`negativeLogMarginalLikelihood`
-: Return the negative log marginal likelihood for use as an optimizer
-  objective.
-
-`marginalLikelihood`
-: Return the marginal likelihood on the original scale.
-
-`simulate`
-: Draw reduced-form VAR parameters from the posterior implied by data and the
-  dummy-augmented prior.
-
-`forecast`
-: Forecast from the posterior implied by data and the dummy-augmented prior.
-
-`simsmooth`
-: Run the inherited simulation smoother using the dummy-augmented prior.
-
-## Examples
-
-### Create a Minnesota Prior
-
-Estimate residual variances once, then build the prior.
-
-```matlab
-numLags = 4;
-psi = estimateResidualVariances(Y,numLags,Method="conditional");
-PriorMdl = minnesotamniwbvarm(size(Y,2),numLags, ...
-    ResidualVariances=psi);
-```
-
-### Estimate a Posterior
-
-```matlab
-PosteriorMdl = estimate(PriorMdl,Y,Display="off");
-```
-
-### Enable Dummy Priors
-
-Use finite values for `lambda4` and `lambda5` to activate the
-sum-of-coefficients and dummy-initial-observation priors.
-
-```matlab
-PriorMdl = minnesotamniwbvarm(size(Y,2),4,ResidualVariances=psi, ...
-    lambda4=10,lambda5=5);
-```
-
-### Evaluate a Hyperparameter Objective
-
-```matlab
-obj = PriorMdl.negativeLogMarginalLikelihood(Y);
-```
+`nex` - Number of deterministic and predictor regressors
+: Sum of the constant, trend, and exogenous predictor counts.
 
 ## More About
 
-### Data-Free Construction
+### Shared Prior Mean
 
-The constructor takes `ResidualVariances`, not the response data `Y`. This
-keeps the base prior reusable and makes hyperparameter tuning cheaper: compute
-the residual variance scale once, rebuild candidate priors, and evaluate each
-candidate's marginal likelihood.
+The base class builds the Minnesota prior mean with nonzero entries only on own
+first lags. For target series $$i$$, the own first-lag prior mean is
+`PriorMean(i)`.
 
-### Dummy Priors
+### Input Validation
 
-The sum-of-coefficients and dummy-initial-observation priors depend on the data.
-`minnesotamniwbvarm` applies them inside `estimate`, `simulate`, `forecast`,
-and the marginal-likelihood methods, where data are legitimately available.
-Setting `lambda4=Inf` or `lambda5=Inf` disables the corresponding dummy rows.
+Concrete subclasses use `validateMinnesotaInputs` to require one residual
+variance per response series and to resolve an empty `PriorMean` to a row vector
+of ones.
 
 ## See Also
 
-`minnesotaSpec`, `minnesotamniwbvarm`, `estimateResidualVariances`,
-`conjugatebvarm`, `weakbvarm`, `uniformirbvarm`
+`minnesotamniwbvarm`, `minnesotainwbvarm`, `minnesotanbvarm`,
+`minnesotaSpec`, `estimateResidualVariances`
+

@@ -156,19 +156,18 @@ PosteriorMdl = estimate(PriorMdl,Y,Display="off");
 Uhlig (2005), Appendix B, describes the reduced-form Normal-Wishart prior using
 hyperparameters `B0`, `N0`, `S0`, and `n0`. The weak prior sets
 
-```text
-N0 = 0
-n0 = 0
-```
+$$
+N_0 = 0,\qquad n_0 = 0.
+$$
 
 with `S0` and `B0` arbitrary. The resulting posterior is
 
-```text
-B_T = Bhat
-S_T = Shat
-n_T = T
-N_T = X'X
-```
+$$
+B_T = \widehat{B},\qquad
+S_T = \widehat{S},\qquad
+n_T = T,\qquad
+N_T = X^{\mathsf{T}}X.
+$$
 
 where `Bhat` and `Shat` are the unrestricted reduced-form OLS quantities and
 `T` is the effective sample size.
@@ -176,12 +175,12 @@ where `Bhat` and `Shat` are the unrestricted reduced-form OLS quantities and
 `weakbvarm` encodes the same reduced-form prior in MATLAB's
 `conjugatebvarm` parameterization:
 
-```text
-Mu    = 0
-V     = diag(inf(k,1))
-Omega = 0
-DoF   = 0
-```
+$$
+\mu = 0,\qquad
+V = \operatorname{diag}(\infty),\qquad
+\Omega = 0,\qquad
+\nu = 0.
+$$
 
 ### Relation to Mountford and Uhlig (2009)
 

@@ -14,6 +14,7 @@ conjugate workflow.
 spec = minnesotaSpec
 spec = minnesotaSpec(Method)
 spec = minnesotaSpec(Name=Value)
+spec = minnesotaSpec(Method,Name=Value)
 ```
 
 ### Description
@@ -22,53 +23,56 @@ spec = minnesotaSpec(Name=Value)
 hyperparameters.
 
 `spec = minnesotaSpec(Method)` chooses `"mniw"`, `"inw"`, or `"normal"`.
+Hyphens, underscores, and spaces are ignored when matching method aliases.
 
-`spec = minnesotaSpec(Name=Value)` sets one or more hyperparameter fields.
+`spec = minnesotaSpec(Name=Value)` sets default MNIW hyperparameter fields.
 
-### Name-Value Arguments
+`spec = minnesotaSpec(Method,Name=Value)` chooses a specification family and
+sets one or more hyperparameter fields.
+
+## Input Arguments
+
+`Method` - Specification family
+: `"mniw"` (default) | `"conjugate"` | `"matrixnormal"` | `"inw"` |
+  `"independent"` | `"kadiyala"` | `"kadiyalakarlsson"` |
+  `"semiconjugate"` | `"normal"` | `"litterman"` | `"fixed"` |
+  `"fixedsigma"`.
+
+## Name-Value Arguments
+
+The available name-value arguments depend on `Method`.
 
 `lambda1` - Overall tightness
 : `0.2` (default) | positive scalar | `[lower upper]` bounds |
   `hyperprior`.
+
+`lambda2` - Cross-variable relative tightness
+: Available for `"inw"` and `"normal"` specs. `0.5` (default) | positive
+  scalar | `[lower upper]` bounds | `hyperprior`.
 
 `lambda3` - Lag-decay exponent
 : `1` (default) | nonnegative scalar | `[lower upper]` bounds |
   `hyperprior`.
 
 `lambda4` - Sum-of-coefficients dummy tightness
-: `Inf` (default) | positive scalar | `[lower upper]` bounds |
-  `hyperprior`. Set to `Inf` to disable this dummy prior.
+: Available for `"mniw"` specs. `Inf` (default) | positive scalar |
+  `[lower upper]` bounds | `hyperprior`.
 
 `lambda5` - Dummy-initial-observation tightness
-: `Inf` (default) | positive scalar | `[lower upper]` bounds |
-  `hyperprior`. Set to `Inf` to disable this dummy prior.
+: Available for `"mniw"` specs. `Inf` (default) | positive scalar |
+  `[lower upper]` bounds | `hyperprior`.
 
 `Vc` - Prior variance for deterministic terms
 : `1e4` (default) | positive scalar.
 
 `PriorMean` - Own first-lag prior mean
-: `[]` (default) | numeric row vector. An empty value means
-  the built model uses a row vector of ones.
+: `[]` (default) | numeric row vector. An empty value means the built model
+  uses a row vector of ones.
 
-## Properties
+## Output Arguments
 
-`lambda1` - Overall Minnesota tightness
-: Positive scalar.
-
-`lambda3` - Lag-decay exponent
-: Nonnegative scalar.
-
-`lambda4` - Sum-of-coefficients dummy tightness
-: Positive scalar or `Inf`.
-
-`lambda5` - Dummy-initial-observation tightness
-: Positive scalar or `Inf`.
-
-`Vc` - Prior variance for constants, trends, and predictors
-: Positive scalar.
-
-`PriorMean` - Own first-lag prior mean
-: Numeric row vector or `[]`.
+`spec` - Minnesota specification
+: `minnesotamniwSpec`, `minnesotainwSpec`, or `minnesotanSpec`.
 
 ## Object Functions
 
@@ -77,17 +81,18 @@ hyperparameters.
   vector.
 
 `pack`
-: Return optimizer starts, lower bounds, upper bounds, and field names for
-  free hyperparameters. Numeric bounds use a geometric-mean start; hyperprior
-  fields use their `Bounds` and `X0` properties.
+: Return optimizer starts, lower bounds, upper bounds, and field names for free
+  hyperparameters.
 
 `unpack`
-: Write an optimizer vector back to selected hyperparameter fields, returning a
-  resolved numeric copy of the spec.
+: Write optimizer values back to selected hyperparameter fields.
+
+`freeFields`
+: Return the names of free hyperparameters.
 
 `logHyperprior`
-: Evaluate log-density terms from embedded `hyperprior` fields against a
-  resolved candidate spec.
+: Available on MNIW specs. Evaluate log-density terms from embedded
+  `hyperprior` fields.
 
 ## Examples
 
@@ -102,13 +107,20 @@ PriorMdl = spec.build(size(Y,2),numLags,psi, ...
     SeriesNames=["Output" "Prices" "Rate"]);
 ```
 
+### Select a Nonconjugate Specification
+
+```matlab
+spec = minnesotaSpec("inw",lambda1=0.2,lambda2=0.4,lambda3=1);
+PriorMdl = spec.build(size(Y,2),4,psi);
+```
+
 ### Pack and Unpack Free Parameters
 
 ```matlab
-freeParams = ["lambda1" "lambda4" "lambda5"];
-theta0 = spec.pack(freeParams);
+spec = minnesotaSpec("mniw",lambda1=[0.01 1],lambda4=[1 50]);
+[theta0,lb,ub,names] = spec.pack();
 
-candidate = spec.unpack(theta0 + [0.1 0 0],freeParams);
+candidate = spec.unpack(theta0,names);
 ```
 
 ### Tune with Embedded Hyperpriors
@@ -129,18 +141,23 @@ PriorMdl = glp(size(Y,2),numLags,Y,Psi,Spec=spec);
 
 ## More About
 
-### Separation from Model Objects
+### Specification Families
 
-`minnesotaSpec` is the mutable recipe. It stores hyperparameter values and
-optimization helpers but no data and no model moments. Concrete model objects
-such as `minnesotamniwbvarm` are materialized from a spec, a model size, a lag
-order, and a precomputed residual variance vector.
+The MNIW family builds `minnesotamniwbvarm` objects and supports an analytic
+marginal likelihood. The INW family builds `minnesotainwbvarm` objects and
+supports free cross-variable shrinkage, $$\lambda_2$$, with a simulation-based
+posterior. The Normal family builds `minnesotanbvarm` objects with fixed
+innovations covariance.
 
-This separation is useful for marginal-likelihood or MAP tuning loops: update a
-spec, build a prior, evaluate the objective, and repeat without recomputing the
-residual variance scale.
+### Scalar-or-Bounds Convention
+
+For tunable hyperparameter fields, a scalar fixes the value, a two-element
+vector `[lower upper]` makes the field free with flat bounds, and a `hyperprior`
+object makes the field free with an added log-density term.
 
 ## See Also
 
-`minnesotamniwbvarm`, `minnesotainwbvarm`, `minnesotanbvarm`,
-`estimateResidualVariances`, `fminsearch`, `fminunc`
+`minnesotamniwSpec`, `minnesotainwSpec`, `minnesotanSpec`,
+`minnesotamniwbvarm`, `minnesotainwbvarm`, `minnesotanbvarm`, `hyperprior`,
+`glp`
+

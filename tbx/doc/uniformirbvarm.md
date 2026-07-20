@@ -22,14 +22,14 @@ PriorMdl = uniformirbvarm(numseries,numlags,Name=Value)
 ### Description
 
 `PriorMdl = uniformirbvarm(numseries,numlags)` creates a reduced-form Bayesian
-VAR prior with `numseries` response variables and `numlags` autoregressive lags.
+VAR prior with `numseries` response variables and `numlags` autoregressive
+lags.
 
-`PriorMdl = uniformirbvarm(numseries,numlags,Name=Value)` sets model options
-using name-value arguments. For example,
-`uniformirbvarm(4,4,DeterminantShift=-3)` uses the paper's default determinant
-shift.
+`PriorMdl = uniformirbvarm(___,Name=Value)` sets model options using
+name-value arguments. For example, `uniformirbvarm(4,4,DeterminantShift=-3)`
+uses the paper's default determinant shift.
 
-### Input Arguments
+## Input Arguments
 
 `numseries` - Number of response series
 : Positive integer.
@@ -37,37 +37,32 @@ shift.
 `numlags` - Number of lagged responses
 : Nonnegative integer.
 
-### Name-Value Arguments
+## Name-Value Arguments
 
 `DeterminantShift` - Determinant exponent shift
-: `-3` (default) | numeric scalar
+: `-3` (default) | finite numeric scalar. If
+  `k = NumEquationCoefficients`, then the reduced-form prior density is
+  proportional to
 
-  Shift applied to the number of coefficients per equation in the reduced-form
-  determinant exponent. If `k = NumEquationCoefficients`, then the prior density
-  is proportional to
-
-  ```text
-  |det(Sigma)|^((k + DeterminantShift)/2).
-  ```
-
-  Set `DeterminantShift=-3` to use the paper's uniform impulse-response prior.
-  This property can be set only when you create the object.
+$$
+|\det(\Sigma)|^{(k+\texttt{DeterminantShift})/2}.
+$$
 
 `IncludeConstant` - Flag for including model constant
-: `true` (default) | `false`
+: Inherited `conjugatebvarm` option.
 
 `IncludeTrend` - Flag for including linear time trend
-: `false` (default) | `true`
+: Inherited `conjugatebvarm` option.
 
 `NumPredictors` - Number of exogenous predictors
-: `0` (default) | nonnegative integer
+: Inherited `conjugatebvarm` option.
 
 `SeriesNames` - Response series names
-: string vector | cell array of character vectors
+: Inherited `conjugatebvarm` option.
 
-Other `conjugatebvarm` name-value arguments can be passed to the superclass, but
-`uniformirbvarm` overwrites the prior hyperparameters required by the reduced-form
-uniform impulse-response prior.
+Other `conjugatebvarm` name-value arguments can be passed to the superclass,
+but `uniformirbvarm` overwrites the reduced-form prior hyperparameters required
+by the uniform impulse-response prior.
 
 ## Properties
 
@@ -92,15 +87,15 @@ uniform impulse-response prior.
 : Nonnegative integer.
 
 `NumEquationCoefficients` - Number of coefficients per equation
-: Positive integer. This is `NumSeries*P + IncludeConstant + IncludeTrend +
+: Positive integer, equal to `NumSeries*P + IncludeConstant + IncludeTrend +
   NumPredictors`.
 
 ### Uniform Prior Parameters
 
 `DeterminantShift` - Determinant exponent shift
-: Numeric scalar. The default is `-3`. Set access is private.
+: Finite numeric scalar. The default is `-3`. Set access is private.
 
-`ReducedFormLogDetExponent` - Reduced-form log-determinant exponent
+`LogDetExponent` - Reduced-form log-determinant exponent
 : Numeric scalar equal to `(NumEquationCoefficients + DeterminantShift)/2`.
 
 ### Distribution Hyperparameters
@@ -115,8 +110,8 @@ uniform impulse-response prior.
 : Zero matrix of size `NumSeries`-by-`NumSeries`.
 
 `DoF` - Inverse-Wishart degrees of freedom
-: Numeric scalar equal to
-  `-2*NumEquationCoefficients - NumSeries - 1 - DeterminantShift`.
+: Numeric scalar equal to `-2*NumEquationCoefficients - NumSeries - 1 -
+  DeterminantShift`.
 
 ## Object Functions
 
@@ -144,13 +139,11 @@ reduced-form determinant exponent is `7` and the prior degrees of freedom are
 
 ```matlab
 PriorMdl.NumEquationCoefficients
-PriorMdl.ReducedFormLogDetExponent
+PriorMdl.LogDetExponent
 PriorMdl.DoF
 ```
 
 ### Estimate a Reduced-Form Posterior
-
-Estimate the posterior from a matrix of responses `Y`.
 
 ```matlab
 PriorMdl = uniformirbvarm(4,4,SeriesNames=["OPHNFB" "Hours" "GDPDEF" "GS10"]);
@@ -159,14 +152,11 @@ PosteriorMdl = estimate(PriorMdl,Y,Display="off");
 
 ### Use a Different Determinant Shift
 
-Change the determinant shift when constructing the prior.
-
 ```matlab
 PriorMdl = uniformirbvarm(4,4,DeterminantShift=-1);
 ```
 
-Changing the determinant shift changes both `ReducedFormLogDetExponent` and
-`DoF`.
+Changing the determinant shift changes both `LogDetExponent` and `DoF`.
 
 ## More About
 
@@ -175,16 +165,16 @@ Changing the determinant shift changes both `ReducedFormLogDetExponent` and
 Proposition 5 in Arias, Rubio-Ramirez, and Waggoner writes a generic
 reduced-form prior density as
 
-$$\left|det(\Sigma)\right|^{\frac{a}{2}}$$
+$$
+|\det(\Sigma)|^{a/2}.
+$$
 
-Corollary 1 specializes the generic numerator to `a = m - 3`, where `m` is the
+Corollary 1 specializes the numerator to $$a = m - 3$$, where $$m$$ is the
 number of coefficients per equation. In `uniformirbvarm`, this is represented as
 
-```text
-a = NumEquationCoefficients + DeterminantShift
-```
-
-with `DeterminantShift=-3` by default.
+$$
+a = \texttt{NumEquationCoefficients} + \texttt{DeterminantShift}.
+$$
 
 ### Scope
 
@@ -195,3 +185,4 @@ structural impulse responses, or construct joint credible sets.
 ## See Also
 
 `conjugatebvarm`, `diffusebvarm`, `weakbvarm`
+
