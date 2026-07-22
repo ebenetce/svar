@@ -1,41 +1,22 @@
 classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.mixin.CustomDisplay
     %MINNESOTAMNIWBVARM Conjugate Minnesota prior for a Bayesian VAR.
     %
-    %   PriorMdl = MINNESOTAMNIWBVARM(NUMSERIES,NUMLAGS,Y) creates a
-    %   Litterman-shaped Matrix-Normal-Inverse-Wishart prior for the sample Y,
-    %   with the residual-variance scale estimated from Y.
+    %   PriorMdl = SVAR.MINNESOTAMNIWBVARM(NUMSERIES,NUMLAGS,Y) creates a
+    %   Litterman-shaped Matrix-Normal-Inverse-Wishart prior for the sample Y.
+    %   Prefer the MINNESOTABVARM front door, which reaches this class as
+    %   Type="mniw" (the default).
     %
-    %   PriorMdl = MINNESOTAMNIWBVARM(...,Psi=PSI) sets the residual-variance
-    %   scale. PSI is either a 1-by-NUMSERIES vector of variances or one of
-    %   "exact" (default) / "conditional", naming the estimator that
-    %   ESTIMATERESIDUALVARIANCES applies to Y. Pass PSI numerically inside a
-    %   tuning loop: the string form refits an AR per series on every call.
+    %   Everything data-dependent is resolved in the constructor: the
+    %   residual-variance scale Psi (see SVAR.MINNESOTABVARMBASE) and the
+    %   sum-of-coefficients / dummy-initial-observation priors. The object
+    %   that comes out is the FULL prior - Mu/V/Omega/DoF already carry the
+    %   dummy observations.
     %
-    %   PriorMdl = MINNESOTAMNIWBVARM(...,Name=Value) sets hyperparameters
-    %   lambda1, lambda3, lambda4, lambda5, Vc, and PriorMean, plus any
-    %   CONJUGATEBVARM option (SeriesNames, IncludeConstant, IncludeTrend,
-    %   NumPredictors, Description).
-    %
-    %   Data-in-the-constructor contract
-    %   --------------------------------
-    %   Y is required and retained. Both data-dependent pieces of this prior -
-    %   the residual-variance scale and the sum-of-coefficients /
-    %   dummy-initial-observation priors - are resolved once, here, so the
-    %   object that comes out is the FULL prior: Mu/V/Omega/DoF already carry
-    %   the dummy observations.
-    %
-    %   That is the whole point of taking Y up front. The alternative - a
-    %   data-free object that folds dummies in later - forces every consumer
-    %   (estimate, simulate, forecast, simsmooth, logMarginalLikelihood) to
-    %   remember to apply them, and a consumer that forgets silently drops
-    %   lambda4/lambda5 rather than failing. Building the augmented prior once
-    %   makes that class of bug unreachable.
-    %
-    %   Because Y is stored, ESTIMATE/SIMULATE/FORECAST/SIMSMOOTH and
-    %   LOGMARGINALLIKELIHOOD may be called with no data argument. Supplying a
-    %   sample that differs from the stored one is an error, not a silent
-    %   re-fit: Psi and the dummy rows were derived from the stored Y, so a
-    %   different sample needs a different prior object.
+    %   That is the point of taking Y up front. A data-free object that folds
+    %   dummies in later forces every consumer (estimate, simulate, forecast,
+    %   simsmooth, logMarginalLikelihood) to remember to apply them, and a
+    %   consumer that forgets silently drops lambda4/lambda5 rather than
+    %   failing. Building the augmented prior once makes that unreachable.
     %
     %   Hyperparameter mapping
     %   ----------------------
@@ -56,13 +37,11 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
     %   cannot represent a separate own-vs-cross tightness, so lambda2 is
     %   implicitly 1. Representing it would break conjugacy - and conjugacy is
     %   exactly what makes the analytic marginal likelihood (and GLP) possible.
-    %   If you need a free lambda2, use MINNESOTAINWBVARM.
+    %   If you need a free lambda2, use SVAR.MINNESOTAINWBVARM.
     %
-    %   See also GLP, ESTIMATERESIDUALVARIANCES, LOGMARGINALLIKELIHOOD,
-    %   CONJUGATEBVARM.
+    %   See also MINNESOTABVARM, GLP, LOGMARGINALLIKELIHOOD, CONJUGATEBVARM.
 
     properties (SetAccess = private)
-        Y         double            % estimation sample the prior was built from
         lambda2   (1,1) double = 1  % cross-variable relative tightness (pinned to 1)
         lambda4   (1,1) double      % sum-of-coefficients tightness (Inf = off)
         lambda5   (1,1) double      % dummy-initial-observation tightness (Inf = off)
@@ -93,28 +72,17 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
                 nvp2.SeriesNames
             end
 
-            % Resolve the sample before the superclass call: a tabular Y also
-            % supplies SeriesNames unless the caller named them explicitly.
-            [Y, nvp2] = minnesotamniwbvarm.resolveSample(Y, numseries, numlags, nvp2);
+            [Y, nvp2] = svar.minnesotamniwbvarm.resolveSample( ...
+                Y, numseries, numlags, nvp2, "minnesotamniwbvarm");
 
             % Delegate the structural set-up (SeriesNames, exogenous layout,
             % NumSeries/P bookkeeping) to the conjugate superclass.
             args = namedargs2cell(nvp2);
             obj  = obj@conjugatebvarm(numseries, numlags, args{:});
 
-            residualVariances = obj.resolvePsi(nvp.Psi, Y, numlags);
-            priorMean = obj.validateMinnesotaInputs( ...
-                residualVariances, nvp.PriorMean, "minnesotamniwbvarm");
-
-            % Store the sample and hyperparameters (read-only from here on).
-            obj.Y                 = Y;
-            obj.ResidualVariances = residualVariances;
-            obj.lambda1           = nvp.lambda1;
-            obj.lambda3           = nvp.lambda3;
-            obj.lambda4           = nvp.lambda4;
-            obj.lambda5           = nvp.lambda5;
-            obj.Vc                = nvp.Vc;
-            obj.PriorMean         = priorMean;
+            obj = obj.configureMinnesota(Y, numlags, nvp, "minnesotamniwbvarm");
+            obj.lambda4 = nvp.lambda4;
+            obj.lambda5 = nvp.lambda5;
 
             % Materialise the FULL prior: Litterman moments, then any active
             % dummy observations folded in through the conjugate NIW update.
@@ -134,61 +102,31 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
     % to reject a mismatched sample. The prior itself needs no late patching.
     methods
 
-        function [Posterior, Summary] = estimate(obj, Y, opts)
+        function [Posterior, Summary] = estimate(obj, varargin)
             %ESTIMATE Analytic conjugate posterior for the stored sample.
-            arguments
-                obj (1,1) minnesotamniwbvarm
-                Y   = obj.Y
-                opts.Display
-                opts.X
-                opts.Y0
-            end
+      
+            Mdl = toConjugate(obj);
+            [Posterior, Summary] = Mdl.estimate(obj.Y, varargin{:});
 
-            obj.assertStoredSample(Y, "estimate");
-            args = namedargs2cell(opts);
-            [MN, Summary] = estimate@conjugatebvarm(obj, obj.Y, args{:});
-
-            % Return a plain conjugatebvarm posterior (it is no longer a
-            % Minnesota prior, so do not pretend it is one).
-            Posterior = conjugatebvarm(MN.NumSeries, MN.P, ...
-                Description     = MN.Description, ...
-                SeriesNames     = MN.SeriesNames, ...
-                IncludeConstant = MN.IncludeConstant, ...
-                IncludeTrend    = MN.IncludeTrend, ...
-                NumPredictors   = MN.NumPredictors, ...
-                Mu = MN.Mu, V = MN.V, Omega = MN.Omega, DoF = MN.DoF);
         end
 
-        function varargout = simulate(obj, Y, opts)
+        function varargout = simulate(obj, varargin)
             %SIMULATE Draw coefficients and covariance given the stored sample.
-            arguments
-                obj (1,1) minnesotamniwbvarm
-                Y   = obj.Y
-                opts.NumDraws
-                opts.X
-                opts.Y0
-            end
-            obj.assertStoredSample(Y, "simulate");
-            args = namedargs2cell(opts);
-            [varargout{1:nargout}] = simulate@conjugatebvarm(obj, obj.Y, args{:});
+
+            [varargout{1:nargout}] = simulate@conjugatebvarm(obj, obj.Y, varargin{:});
         end
 
-        function varargout = forecast(obj, numperiods, Y, varargin)
+        function varargout = forecast(obj, numperiods)
             %FORECAST Forecast responses beyond the stored sample.
             arguments
-                obj        (1,1) minnesotamniwbvarm
+                obj        (1,1) svar.minnesotamniwbvarm
                 numperiods (1,1) double {mustBeInteger, mustBePositive}
-                Y          = obj.Y
             end
-            arguments (Repeating)
-                varargin
-            end
-            obj.assertStoredSample(Y, "forecast");
-            [varargout{1:nargout}] = ...
-                forecast@conjugatebvarm(obj, numperiods, obj.Y, varargin{:});
+            Mdl = toConjugate(obj);
+            [varargout{1:nargout}] = Mdl.forecast(numperiods, obj.Y);
         end
 
-        function varargout = simsmooth(obj, Y, varargin)
+        function varargout = simsmooth(obj, varargin)
             %SIMSMOOTH Simulation smoother, defaulting to the stored sample.
             %   Deliberately NOT sample-checked. simsmooth is the primitive
             %   the inherited machinery calls internally - bvar/forecast in
@@ -196,15 +134,7 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
             %   over the forecast horizon - so a strict equality check here
             %   would reject the toolbox's own legitimate calls. The check
             %   belongs on the user-facing entry points above.
-            arguments
-                obj (1,1) minnesotamniwbvarm
-                Y   = obj.Y
-            end
-            arguments (Repeating)
-                varargin
-            end
-            [varargout{1:nargout}] = ...
-                simsmooth@conjugatebvarm(obj, Y, varargin{:});
+            [varargout{1:nargout}] = simsmooth@conjugatebvarm(obj, obj.Y, varargin{:});
         end
 
     end
@@ -254,7 +184,7 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
             if isempty(YDummy)
                 return
             end
-            [Mu, V, Omega, DoF] = minnesotamniwbvarm.updateNIW( ...
+            [Mu, V, Omega, DoF] = svar.minnesotamniwbvarm.updateNIW( ...
                 Mu, V, Omega, DoF, XDummy, YDummy, obj.NumSeries);
         end
 
@@ -303,69 +233,22 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
             end
         end
 
-        function psi = resolvePsi(obj, Psi, Y, numlags)
-            %RESOLVEPSI Residual-variance scale from a vector or an estimator name.
-            if isstring(Psi) || ischar(Psi)
-                method = string(Psi);
-                mustBeMember(method, ["exact","conditional"]);
-                psi = estimateResidualVariances(Y, numlags, Method=method);
-                return
-            end
+        function Mdl = toConjugate(obj)
 
-            if ~isnumeric(Psi) || ~isvector(Psi) || numel(Psi) ~= obj.NumSeries
-                error("minnesotamniwbvarm:invalidPsi", ...
-                    "Psi must be a 1-by-%d numeric vector or one of " + ...
-                    """exact"" / ""conditional"".", obj.NumSeries);
-            end
-            if any(~isfinite(Psi)) || any(Psi <= 0)
-                error("minnesotamniwbvarm:invalidPsi", ...
-                    "Psi values must be finite and positive.");
-            end
-            psi = reshape(double(Psi), 1, []);
-        end
+            Mdl = conjugatebvarm(obj.NumSeries, obj.P, ...
+                Description     = obj.Description, ...
+                SeriesNames     = obj.SeriesNames, ...
+                IncludeConstant = obj.IncludeConstant, ...
+                IncludeTrend    = obj.IncludeTrend, ...
+                NumPredictors   = obj.NumPredictors, ...
+                Mu = obj.Mu, V = obj.V, Omega = obj.Omega, DoF = obj.DoF);
 
-        function assertStoredSample(obj, Y, caller)
-            %ASSERTSTOREDSAMPLE Reject a sample other than the one built from.
-            if istabular(Y)
-                Y = Y{:,:};
-            end
-            if ~isequal(Y, obj.Y)
-                error("minnesotamniwbvarm:sampleMismatch", ...
-                    "%s was called with a sample that differs from the one " + ...
-                    "this prior was built from. Psi and the lambda4/lambda5 " + ...
-                    "dummy observations derive from the stored sample, so a " + ...
-                    "different sample needs a new minnesotamniwbvarm.", caller);
-            end
         end
 
     end
 
     % ---- shared conjugate NIW algebra -----------------------------------
     methods (Static, Access = private)
-
-        function [Y, nvp2] = resolveSample(Y, numseries, numlags, nvp2)
-            %RESOLVESAMPLE Validate Y and adopt tabular variable names.
-            if istabular(Y)
-                if ~isfield(nvp2, "SeriesNames")
-                    nvp2.SeriesNames = string(Y.Properties.VariableNames);
-                end
-                Y = Y{:,:};
-            end
-
-            if ~isnumeric(Y) || ~ismatrix(Y)
-                error("minnesotamniwbvarm:invalidData", ...
-                    "Y must be a numeric matrix or a table/timetable.");
-            end
-            if size(Y, 2) ~= numseries
-                error("minnesotamniwbvarm:invalidData", ...
-                    "Y must have %d columns, one per series.", numseries);
-            end
-            if size(Y, 1) <= numlags
-                error("minnesotamniwbvarm:invalidData", ...
-                    "Y must have more rows than the lag order P = %d.", numlags);
-            end
-            Y = double(Y);
-        end
 
         function [MuOut, VOut, OmegaOut, DoFOut] = updateNIW(Mu, V, Omega, DoF, X, Yobs, n)
             %UPDATENIW One conjugate Normal-Inverse-Wishart update.

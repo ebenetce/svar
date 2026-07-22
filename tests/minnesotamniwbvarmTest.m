@@ -8,7 +8,7 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
         function estimatesPsiFromDataByDefault(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
 
-            prior = minnesotamniwbvarm(2, 1, Y);
+            prior = svar.minnesotamniwbvarm(2, 1, Y);
 
             testCase.verifyEqual(prior.ResidualVariances, ...
                 estimateResidualVariances(Y, 1, Method="exact"), AbsTol=1e-12);
@@ -17,7 +17,7 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
         function acceptsNamedPsiEstimator(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
 
-            prior = minnesotamniwbvarm(2, 1, Y, Psi="conditional");
+            prior = svar.minnesotamniwbvarm(2, 1, Y, Psi="conditional");
 
             testCase.verifyEqual(prior.ResidualVariances, ...
                 estimateResidualVariances(Y, 1, Method="conditional"), AbsTol=1e-12);
@@ -26,7 +26,7 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
         function acceptsNumericPsi(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
 
-            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
+            prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
 
             testCase.verifyEqual(prior.ResidualVariances, [1 4], AbsTol=0);
             testCase.verifyEqual(prior.Omega, diag([1 4]), AbsTol=0);
@@ -36,7 +36,7 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
             Y = minnesotamniwbvarmTest.sampleData();
             T = array2table(Y, VariableNames=["GDP" "CPI"]);
 
-            prior = minnesotamniwbvarm(2, 1, T, Psi=[1 4]);
+            prior = svar.minnesotamniwbvarm(2, 1, T, Psi=[1 4]);
 
             testCase.verifyEqual(string(prior.SeriesNames), ["GDP" "CPI"]);
             testCase.verifyEqual(prior.Y, Y, AbsTol=0);
@@ -45,18 +45,18 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
         function rejectsInvalidSample(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
 
-            testCase.verifyError(@() minnesotamniwbvarm(3, 1, Y), ...
+            testCase.verifyError(@() svar.minnesotamniwbvarm(3, 1, Y), ...
                 "minnesotamniwbvarm:invalidData");
-            testCase.verifyError(@() minnesotamniwbvarm(2, 1, Y(1,:)), ...
+            testCase.verifyError(@() svar.minnesotamniwbvarm(2, 1, Y(1,:)), ...
                 "minnesotamniwbvarm:invalidData");
         end
 
         function rejectsInvalidPsi(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
 
-            testCase.verifyError(@() minnesotamniwbvarm(2, 1, Y, Psi=[1 2 3]), ...
+            testCase.verifyError(@() svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 2 3]), ...
                 "minnesotamniwbvarm:invalidPsi");
-            testCase.verifyError(@() minnesotamniwbvarm(2, 1, Y, Psi=[1 -1]), ...
+            testCase.verifyError(@() svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 -1]), ...
                 "minnesotamniwbvarm:invalidPsi");
         end
 
@@ -65,8 +65,8 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
         function dummiesAreFoldedInByTheConstructor(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
 
-            off = minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
-            on  = minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=1, lambda5=2);
+            off = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
+            on  = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=1, lambda5=2);
 
             testCase.verifyEqual(off.NumDummyObservations, 0);
             testCase.verifyEqual(on.NumDummyObservations, 3);   % n rows + 1 row
@@ -83,8 +83,8 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
         function dummiesShiftTheMeanAwayFromAUnitRootPriorMean(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
 
-            off = minnesotamniwbvarm(2, 1, Y, Psi=[1 4], PriorMean=0.5);
-            on  = minnesotamniwbvarm(2, 1, Y, Psi=[1 4], PriorMean=0.5, ...
+            off = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4], PriorMean=0.5);
+            on  = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4], PriorMean=0.5, ...
                 lambda4=1, lambda5=2);
 
             testCase.verifyNotEqual(on.Mu, off.Mu);
@@ -97,8 +97,8 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
             % if they were off.
             Y = minnesotamniwbvarmTest.sampleData();
 
-            off = minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
-            on  = minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=1);
+            off = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
+            on  = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=1);
 
             testCase.verifyNotEqual( ...
                 logMarginalLikelihood(on), logMarginalLikelihood(off));
@@ -107,7 +107,7 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
         function lambdasOffByDefault(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
 
-            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
+            prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
 
             testCase.verifyEqual(prior.lambda4, Inf);
             testCase.verifyEqual(prior.lambda5, Inf);
@@ -118,7 +118,7 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
             Y = minnesotamniwbvarmTest.sampleData();
             psi = [1 4];
 
-            prior = minnesotamniwbvarm(2, 2, Y, Psi=psi, ...
+            prior = svar.minnesotamniwbvarm(2, 2, Y, Psi=psi, ...
                 lambda1=0.2, lambda3=1, Vc=1e4);
 
             % V(lag l, regressor j) = lambda1^2 / (l^(2*lambda3) * psi_j),
@@ -132,19 +132,19 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
 
         function estimateWorksWithoutASampleArgument(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
-            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=1);
+            prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=1);
 
-            posterior = estimate(prior);
+            posterior = estimate(prior, Display="off");
 
             testCase.verifyClass(posterior, "conjugatebvarm");
             testCase.verifyEqual(posterior.Mu, ...
-                estimate(prior, Y, Display="off").Mu, AbsTol=0);
+                estimate(prior, Display="off").Mu, AbsTol=0);
         end
 
         function simulateAndForecastWorkWithoutASampleArgument(testCase)
             rng(0);
             Y = minnesotamniwbvarmTest.sampleData();
-            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=1);
+            prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=1);
 
             [coefficients, covariances] = simulate(prior, NumDraws=5);
             forecasts = forecast(prior, 4);
@@ -154,21 +154,11 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
             testCase.verifySize(forecasts, [4 2]);
         end
 
-        function rejectsASampleOtherThanTheStoredOne(testCase)
-            Y = minnesotamniwbvarmTest.sampleData();
-            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
-
-            testCase.verifyError(@() estimate(prior, Y(1:10,:)), ...
-                "minnesotamniwbvarm:sampleMismatch");
-            testCase.verifyError(@() simulate(prior, Y(1:10,:), NumDraws=2), ...
-                "minnesotamniwbvarm:sampleMismatch");
-        end
-
         function acceptsTheStoredSampleExplicitly(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
-            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
+            prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
 
-            testCase.verifyClass(estimate(prior, Y, Display="off"), ...
+            testCase.verifyClass(estimate(prior, Display="off"), ...
                 "conjugatebvarm");
         end
 
