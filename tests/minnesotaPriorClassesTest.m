@@ -5,11 +5,9 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         function concreteConstructorsReturnExpectedClasses(testCase)
             psi = [1 4 9];
 
-            mniwPrior = svar.minnesotamniwbvarm(3, 2, psi);
             inwPrior = svar.minnesotainwbvarm(3, 2, psi);
             normalPrior = svar.minnesotanbvarm(3, 2, psi);
 
-            testCase.verifyClass(mniwPrior, "svar.minnesotamniwbvarm");
             testCase.verifyClass(inwPrior, "svar.minnesotainwbvarm");
             testCase.verifyClass(normalPrior, "svar.minnesotanbvarm");
         end
@@ -23,8 +21,6 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function concreteSpecConstructorsAreFactoryOnly(testCase)
-            testCase.verifyError(@() svar.minnesotamniwSpec(), ...
-                "MATLAB:class:MethodRestricted");
             testCase.verifyError(@() svar.minnesotainwSpec(), ...
                 "MATLAB:class:MethodRestricted");
             testCase.verifyError(@() svar.minnesotanSpec(), ...
@@ -87,21 +83,27 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function factoryDispatchesExpectedSpecClasses(testCase)
-            mniwSpec = minnesotaSpec("mniw");
             inwSpec = minnesotaSpec("inw");
             normalSpec = minnesotaSpec("normal");
-            legacySpec = minnesotaSpec("mniw", lambda1=[1e-3 5]);
+            legacySpec = minnesotaSpec("inw", lambda1=[1e-3 5]);
 
-            testCase.verifyClass(mniwSpec, "svar.minnesotamniwSpec");
             testCase.verifyClass(inwSpec, "svar.minnesotainwSpec");
             testCase.verifyClass(normalSpec, "svar.minnesotanSpec");
             testCase.verifyEqual(legacySpec.lambda1, [1e-3 5], AbsTol=0);
         end
 
         function factoryDispatchesAliases(testCase)
-            testCase.verifyClass(minnesotaSpec("conjugate"), "svar.minnesotamniwSpec");
             testCase.verifyClass(minnesotaSpec("semiconjugate"), "svar.minnesotainwSpec");
             testCase.verifyClass(minnesotaSpec("fixedsigma"), "svar.minnesotanSpec");
+        end
+
+        function retiredConjugateAliasesPointAtTheClass(testCase)
+            % The conjugate family left the spec API: minnesotamniwbvarm
+            % takes the data directly and glp tunes it without a spec.
+            for alias = ["mniw" "conjugate" "matrixnormal"]
+                testCase.verifyError(@() minnesotaSpec(alias), ...
+                    "minnesotaSpec:retiredMethod");
+            end
         end
 
         function unknownMethodMessageListsAliases(testCase)
@@ -112,8 +114,6 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
             testCase.verifyThat(message, ...
                 ContainsSubstring("Available Method aliases:"));
             testCase.verifyThat(message, ...
-                ContainsSubstring("mniw   (Matrix-Normal-Inverse-Wishart):"));
-            testCase.verifyThat(message, ...
                 ContainsSubstring("inw    (Independent Normal-Wishart):"));
             testCase.verifyThat(message, ...
                 ContainsSubstring("normal (fixed-Sigma Normal):"));
@@ -122,7 +122,6 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function specsInheritSharedBase(testCase)
-            testCase.verifyTrue(isa(minnesotaSpec("mniw"), "svar.minnesotaBaseSpec"));
             testCase.verifyTrue(isa(minnesotaSpec("inw"), "svar.minnesotaBaseSpec"));
             testCase.verifyTrue(isa(minnesotaSpec("normal"), "svar.minnesotaBaseSpec"));
         end
@@ -130,27 +129,11 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         function specsBuildExpectedModelClasses(testCase)
             psi = [1 4 9];
 
-            mniwPrior = minnesotaSpec("mniw").build(3, 2, psi);
             inwPrior = minnesotaSpec("inw").build(3, 2, psi);
             normalPrior = minnesotaSpec("normal").build(3, 2, psi);
 
-            testCase.verifyClass(mniwPrior, "svar.minnesotamniwbvarm");
             testCase.verifyClass(inwPrior, "svar.minnesotainwbvarm");
             testCase.verifyClass(normalPrior, "svar.minnesotanbvarm");
-        end
-
-        function mniwSpecPacksHyperpriorProperties(testCase)
-            spec = minnesotaSpec("mniw", ...
-                lambda1=hyperprior("Gamma", 0.2, 0.4, Bounds=[1e-4 5]), ...
-                lambda4=hyperprior("Gamma", 1, 1, Bounds=[1e-4 50]), ...
-                lambda5=hyperprior("Gamma", 1, 1, Bounds=[1e-4 50]));
-
-            [x0, lb, ub, names] = spec.pack();
-
-            testCase.verifyEqual(names, ["lambda1" "lambda4" "lambda5"]);
-            testCase.verifyEqual(x0, [0.2 1 1], AbsTol=1e-14);
-            testCase.verifyEqual(lb, [1e-4 1e-4 1e-4], AbsTol=0);
-            testCase.verifyEqual(ub, [5 50 50], AbsTol=0);
         end
 
         function inwSpecPacksHyperpriorProperties(testCase)
@@ -182,15 +165,15 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function specLogHyperpriorUsesPackVectorAndNames(testCase)
-            spec = minnesotaSpec("mniw", ...
+            spec = minnesotaSpec("inw", ...
                 lambda1=hyperprior("Gamma", 0.2, 0.4, Bounds=[1e-4 5]), ...
-                lambda4=[1e-4 50], ...
-                lambda5=hyperprior("Gamma", 1, 1, Bounds=[1e-4 50]));
+                lambda2=[1e-4 1], ...
+                lambda3=hyperprior("Gamma", 1, 1, Bounds=[1e-4 50]));
             [x0, ~, ~, names] = spec.pack();
 
             logp = spec.logHyperprior(x0, names);
             expected = spec.lambda1.logpdf(x0(1)) ...
-                + spec.lambda5.logpdf(x0(3));
+                + spec.lambda3.logpdf(x0(3));
 
             testCase.verifyEqual(logp, expected, AbsTol=1e-14);
         end

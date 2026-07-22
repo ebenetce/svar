@@ -13,7 +13,7 @@ function ml = marginalLikelihood(Mdl, Y, opts)
 
 arguments
     Mdl (1,1)
-    Y {mustBeNonempty}
+    Y = []
     opts.X = []
     opts.Y0 = []
 end

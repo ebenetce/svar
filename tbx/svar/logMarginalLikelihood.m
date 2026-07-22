@@ -3,6 +3,9 @@ function logML = logMarginalLikelihood(Mdl, Y, opts)
 %   LOGML = LOGMARGINALLIKELIHOOD(MDL,Y) returns log p(Y | MDL) for proper
 %   conjugate BVAR and fixed-Sigma Normal BVAR prior objects.
 %
+%   LOGML = LOGMARGINALLIKELIHOOD(MDL) uses the sample stored on MDL, for
+%   prior objects that carry one (see MINNESOTAMNIWBVARM).
+%
 %   LOGML = LOGMARGINALLIKELIHOOD(MDL,Y,X=X,Y0=Y0) supplies exogenous
 %   predictors or presample responses to the sufficient-statistics
 %   calculation.
@@ -16,11 +19,12 @@ function logML = logMarginalLikelihood(Mdl, Y, opts)
 
 arguments
     Mdl (1,1)
-    Y {mustBeNonempty}
+    Y = []
     opts.X = []
     opts.Y0 = []
 end
 
+Y = localResolveSample(Mdl, Y);
 Y = localNumericData(Y, "Y");
 X = localNumericData(opts.X, "X");
 Y0 = localNumericData(opts.Y0, "Y0");
@@ -43,10 +47,10 @@ if isa(Mdl, "normalbvarm")
     return
 end
 
-if isa(Mdl, 'minnesotamniwbvarm')
-    Mdl = Mdl.applyDummies(Y);
-end
-
+% NB: no Minnesota special case. MINNESOTAMNIWBVARM materialises its
+% lambda4/lambda5 dummy observations in the constructor, so by the time a
+% prior reaches here its Mu/V/Omega/DoF are already the augmented ones and
+% the generic conjugate path is correct.
 if isa(Mdl, "conjugatebvarm")
     [XX, XY, YY, numObs] = localSufficientStatistics(Mdl, Y, X, Y0);
     logML = localConjugateLogML(Mdl, XX, XY, YY, numObs);
@@ -55,6 +59,21 @@ end
 
 error("logMarginalLikelihood:unsupportedModel", ...
     "Log marginal likelihood is not implemented for %s.", class(Mdl));
+end
+
+function Y = localResolveSample(Mdl, Y)
+%LOCALRESOLVESAMPLE Fall back to a sample carried by the model object.
+if ~isempty(Y)
+    return
+end
+
+if isprop(Mdl, "Y") && ~isempty(Mdl.Y)
+    Y = Mdl.Y;
+    return
+end
+
+error("logMarginalLikelihood:missingData", ...
+    "Y is required because %s does not carry a sample.", class(Mdl));
 end
 
 function A = localNumericData(A, name)

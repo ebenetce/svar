@@ -34,7 +34,7 @@ classdef logMarginalLikelihoodTest < matlab.unittest.TestCase
 
         function mniwMinnesotaDelegatesToConjugateDispatcher(testCase)
             Y = logMarginalLikelihoodTest.sampleData();
-            prior = svar.minnesotamniwbvarm(2, 1, [1 4]);
+            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
             plain = conjugatebvarm(prior.NumSeries, prior.P, ...
                 IncludeConstant=prior.IncludeConstant, ...
                 IncludeTrend=prior.IncludeTrend, ...
@@ -66,12 +66,27 @@ classdef logMarginalLikelihoodTest < matlab.unittest.TestCase
 
         function mniwMinnesotaDummiesReturnFiniteLogEvidence(testCase)
             Y = logMarginalLikelihoodTest.sampleData();
-            prior = svar.minnesotamniwbvarm(2, 1, [1 4], ...
+            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4], ...
                 lambda4=10, lambda5=5);
 
             logML = logMarginalLikelihood(prior, Y);
 
             testCase.verifyTrue(isfinite(logML));
+        end
+
+        function usesTheSampleStoredOnTheModel(testCase)
+            Y = logMarginalLikelihoodTest.sampleData();
+            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=10);
+
+            testCase.verifyEqual(logMarginalLikelihood(prior), ...
+                logMarginalLikelihood(prior, Y), AbsTol=0);
+            testCase.verifyEqual(marginalLikelihood(prior), ...
+                marginalLikelihood(prior, Y), AbsTol=0);
+        end
+
+        function missingSampleErrorsForModelsWithoutOne(testCase)
+            testCase.verifyError(@() logMarginalLikelihood(conjugatebvarm(2, 1)), ...
+                "logMarginalLikelihood:missingData");
         end
 
         function semiconjugateModelErrors(testCase)
