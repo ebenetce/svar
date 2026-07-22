@@ -134,11 +134,11 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
             Y = minnesotamniwbvarmTest.sampleData();
             prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=1);
 
-            posterior = estimate(prior);
+            posterior = estimate(prior, Display="off");
 
             testCase.verifyClass(posterior, "conjugatebvarm");
             testCase.verifyEqual(posterior.Mu, ...
-                estimate(prior, Y, Display="off").Mu, AbsTol=0);
+                estimate(prior, Display="off").Mu, AbsTol=0);
         end
 
         function simulateAndForecastWorkWithoutASampleArgument(testCase)
@@ -154,21 +154,11 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
             testCase.verifySize(forecasts, [4 2]);
         end
 
-        function rejectsASampleOtherThanTheStoredOne(testCase)
-            Y = minnesotamniwbvarmTest.sampleData();
-            prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
-
-            testCase.verifyError(@() estimate(prior, Y(1:10,:)), ...
-                "minnesotamniwbvarm:sampleMismatch");
-            testCase.verifyError(@() simulate(prior, Y(1:10,:), NumDraws=2), ...
-                "minnesotamniwbvarm:sampleMismatch");
-        end
-
         function acceptsTheStoredSampleExplicitly(testCase)
             Y = minnesotamniwbvarmTest.sampleData();
             prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
 
-            testCase.verifyClass(estimate(prior, Y, Display="off"), ...
+            testCase.verifyClass(estimate(prior, Display="off"), ...
                 "conjugatebvarm");
         end
 

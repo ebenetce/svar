@@ -105,21 +105,14 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
         function [Posterior, Summary] = estimate(obj, varargin)
             %ESTIMATE Analytic conjugate posterior for the stored sample.
       
-            [MN, Summary] = estimate@conjugatebvarm(obj, obj.Y, varargin{:});
+            Mdl = toConjugate(obj);
+            [Posterior, Summary] = Mdl.estimate(obj.Y, varargin{:});
 
-            % Return a plain conjugatebvarm posterior (it is no longer a
-            % Minnesota prior, so do not pretend it is one).
-            Posterior = conjugatebvarm(MN.NumSeries, MN.P, ...
-                Description     = MN.Description, ...
-                SeriesNames     = MN.SeriesNames, ...
-                IncludeConstant = MN.IncludeConstant, ...
-                IncludeTrend    = MN.IncludeTrend, ...
-                NumPredictors   = MN.NumPredictors, ...
-                Mu = MN.Mu, V = MN.V, Omega = MN.Omega, DoF = MN.DoF);
         end
 
         function varargout = simulate(obj, varargin)
             %SIMULATE Draw coefficients and covariance given the stored sample.
+
             [varargout{1:nargout}] = simulate@conjugatebvarm(obj, obj.Y, varargin{:});
         end
 
@@ -129,8 +122,8 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
                 obj        (1,1) svar.minnesotamniwbvarm
                 numperiods (1,1) double {mustBeInteger, mustBePositive}
             end
-            [varargout{1:nargout}] = ...
-                forecast@conjugatebvarm(obj, numperiods, obj.Y);
+            Mdl = toConjugate(obj);
+            [varargout{1:nargout}] = Mdl.forecast(numperiods, obj.Y);
         end
 
         function varargout = simsmooth(obj, varargin)
@@ -238,6 +231,18 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
                 XDummy = [XDummy; Xdio];
                 YDummy = [YDummy; dioY];
             end
+        end
+
+        function Mdl = toConjugate(obj)
+
+            Mdl = conjugatebvarm(obj.NumSeries, obj.P, ...
+                Description     = obj.Description, ...
+                SeriesNames     = obj.SeriesNames, ...
+                IncludeConstant = obj.IncludeConstant, ...
+                IncludeTrend    = obj.IncludeTrend, ...
+                NumPredictors   = obj.NumPredictors, ...
+                Mu = obj.Mu, V = obj.V, Omega = obj.Omega, DoF = obj.DoF);
+
         end
 
     end
