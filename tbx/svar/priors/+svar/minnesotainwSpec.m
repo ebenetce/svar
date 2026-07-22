@@ -1,4 +1,4 @@
-classdef (Hidden) minnesotainwSpec < svar.minnesotaBaseSpec
+classdef minnesotainwSpec < svar.minnesotaBaseSpec
     %minnesotainwSpec Hyperparameter recipe for the Independent Normal-Wishart
     %   Minnesota prior (see INWBVARM; Kadiyala & Karlsson, 1997).
     %

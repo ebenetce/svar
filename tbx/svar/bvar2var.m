@@ -16,12 +16,7 @@ function varMdl = bvar2var(bvarMdl)
 %   See also VARM, BVAR
 
 arguments
-    bvarMdl (1,1) {mustBeVarOrBvar(bvarMdl)}
-end
-
-if isa(bvarMdl, 'varm')
-    varMdl = bvarMdl;
-    return
+    bvarMdl (1,1) bvar
 end
 
 varMdl = varm(AR=bvarMdl.AR, SeriesNames=bvarMdl.SeriesNames, ...

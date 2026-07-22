@@ -36,7 +36,7 @@ function HD = historicalDecomposition(Mdl, Impact, Y, opts)
 %   See also infer, varm, bvar2var
 
 arguments
-    Mdl (1,1) {mustBeVarOrBvar}
+    Mdl (1,1) %{mustBeVarOrBvar}
     Impact (:,:) double
     Y = []
     opts.Y0 double = []

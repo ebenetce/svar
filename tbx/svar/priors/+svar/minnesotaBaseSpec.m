@@ -1,4 +1,4 @@
-classdef (Abstract, Hidden) minnesotaBaseSpec
+classdef (Abstract) minnesotaBaseSpec
     %MINNESOTABASESPEC Shared scalar-or-bounds behavior for Minnesota specs.
 
     properties

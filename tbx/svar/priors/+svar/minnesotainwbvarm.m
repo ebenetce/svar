@@ -1,4 +1,4 @@
-classdef (Hidden) minnesotainwbvarm < semiconjugatebvarm & svar.minnesotabvarmBase & matlab.mixin.CustomDisplay
+classdef minnesotainwbvarm < semiconjugatebvarm & svar.minnesotabvarmBase & matlab.mixin.CustomDisplay
     %MINNESOTAINWBVARM Independent Normal-Wishart Minnesota prior for a BVAR.
     %
     %   A subclass of SEMICONJUGATEBVARM implementing the Independent
