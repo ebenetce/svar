@@ -108,37 +108,25 @@ classdef minnesotainwbvarm < semiconjugatebvarm & svar.minnesotabvarmBase & matl
 
         function varargout = estimate(obj, varargin)
             %ESTIMATE Gibbs posterior for the stored sample (EMPIRICALBVARM).
-            [Y, args] = obj.peelSample(varargin, "estimate", "minnesotainwbvarm");
-            [varargout{1:nargout}] = estimate@semiconjugatebvarm(obj, Y, args{:});
+            [varargout{1:nargout}] = estimate@semiconjugatebvarm(obj, obj.Y, varargin{:});
         end
 
         function varargout = simulate(obj, varargin)
             %SIMULATE Draw coefficients and covariance given the stored sample.
-            [Y, args] = obj.peelSample(varargin, "simulate", "minnesotainwbvarm");
-            [varargout{1:nargout}] = simulate@semiconjugatebvarm(obj, Y, args{:});
+            [varargout{1:nargout}] = simulate@semiconjugatebvarm(obj, obj.Y, varargin{:});
         end
 
-        function varargout = forecast(obj, numperiods, varargin)
-            %FORECAST Forecast responses beyond the stored sample.
-            arguments
-                obj        (1,1) svar.minnesotainwbvarm
-                numperiods (1,1) double {mustBeInteger, mustBePositive}
-            end
-            arguments (Repeating)
-                varargin
-            end
-            [Y, args] = obj.peelSample(varargin, "forecast", "minnesotainwbvarm");
+        function varargout = forecast(obj, numperiods)
+            %FORECAST Forecast responses beyond the stored sample.            
             [varargout{1:nargout}] = ...
-                forecast@semiconjugatebvarm(obj, numperiods, Y, args{:});
+                forecast@semiconjugatebvarm(obj, numperiods, obj.Y);
         end
 
         function varargout = simsmooth(obj, varargin)
             %SIMSMOOTH Simulation smoother, defaulting to the stored sample.
             %   Not sample-checked - see SVAR.MINNESOTAMNIWBVARM/SIMSMOOTH for
             %   why the inherited machinery must be allowed a derived sample.
-            [Y, args] = obj.peelSample(varargin, "simsmooth", ...
-                "minnesotainwbvarm", false);
-            [varargout{1:nargout}] = simsmooth@semiconjugatebvarm(obj, Y, args{:});
+            [varargout{1:nargout}] = simsmooth@semiconjugatebvarm(obj, obj.Y, varargin{:});
         end
 
     end

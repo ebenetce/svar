@@ -121,49 +121,6 @@ classdef (Abstract) minnesotabvarmBase
             psi = reshape(double(Psi), 1, []);
         end
 
-        function [Y, args] = peelSample(obj, args, caller, errorPrefix, check)
-            %PEELSAMPLE Take a leading sample argument if one was passed.
-            %   An inherited method's sample argument is optional here, since
-            %   the object stores one - but it is POSITIONAL and followed by
-            %   name-value pairs, so "is the next argument the sample?" cannot
-            %   be answered by position alone: estimate(mdl,Display="off")
-            %   would otherwise bind "Display" to Y. Data is numeric or
-            %   tabular and an option name never is, so peel on type.
-            arguments
-                obj         (1,1) svar.minnesotabvarmBase
-                args        (1,:) cell
-                caller      (1,1) string
-                errorPrefix (1,1) string
-                check       (1,1) logical = true
-            end
-
-            if ~isempty(args) && (isnumeric(args{1}) || istabular(args{1}))
-                Y = args{1};
-                args(1) = [];
-                if check
-                    Y = obj.resolveCallSample(Y, caller, errorPrefix);
-                end
-                return
-            end
-
-            Y = obj.Y;
-        end
-
-        function sample = resolveCallSample(obj, Y, caller, errorPrefix)
-            %RESOLVECALLSAMPLE Return the stored sample, rejecting any other.
-            sample = obj.Y;
-            if istabular(Y)
-                Y = Y{:,:};
-            end
-            if ~isequal(Y, obj.Y)
-                error(errorPrefix + ":sampleMismatch", ...
-                    "%s was called with a sample that differs from the one " + ...
-                    "this prior was built from. Psi (and any dummy " + ...
-                    "observations) derive from the stored sample, so a " + ...
-                    "different sample needs a new %s.", caller, errorPrefix);
-            end
-        end
-
         function [priorMean] = validateMinnesotaInputs( ...
                 obj, residualVariancesValue, priorMeanValue, errorPrefix)
             numseries = obj.NumSeries;

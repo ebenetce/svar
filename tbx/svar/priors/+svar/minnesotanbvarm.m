@@ -53,8 +53,7 @@ classdef minnesotanbvarm < normalbvarm & svar.minnesotabvarmBase & matlab.mixin.
 
         function [Posterior, Summary] = estimate(obj, varargin)
             %ESTIMATE Analytic fixed-Sigma Normal posterior for the stored sample.
-            [Y, args] = obj.peelSample(varargin, "estimate", "minnesotanbvarm");
-            [NormalPosterior, Summary] = estimate@normalbvarm(obj, Y, args{:});
+            [NormalPosterior, Summary] = estimate@normalbvarm(obj, obj.Y, varargin{:});
 
             Posterior = normalbvarm(NormalPosterior.NumSeries, NormalPosterior.P, ...
                 Description     = NormalPosterior.Description, ...
@@ -69,30 +68,19 @@ classdef minnesotanbvarm < normalbvarm & svar.minnesotabvarmBase & matlab.mixin.
 
         function varargout = simulate(obj, varargin)
             %SIMULATE Draw coefficients given the stored sample.
-            [Y, args] = obj.peelSample(varargin, "simulate", "minnesotanbvarm");
-            [varargout{1:nargout}] = simulate@normalbvarm(obj, Y, args{:});
+            [varargout{1:nargout}] = simulate@normalbvarm(obj, obj.Y, varargin{:});
         end
 
-        function varargout = forecast(obj, numperiods, varargin)
-            %FORECAST Forecast responses beyond the stored sample.
-            arguments
-                obj        (1,1) svar.minnesotanbvarm
-                numperiods (1,1) double {mustBeInteger, mustBePositive}
-            end
-            arguments (Repeating)
-                varargin
-            end
-            [Y, args] = obj.peelSample(varargin, "forecast", "minnesotanbvarm");
+        function varargout = forecast(obj, numperiods)
+            %FORECAST Forecast responses beyond the stored sample.            
             [varargout{1:nargout}] = ...
-                forecast@normalbvarm(obj, numperiods, Y, args{:});
+                forecast@normalbvarm(obj, numperiods, obj.Y);
         end
 
         function varargout = simsmooth(obj, varargin)
             %SIMSMOOTH Simulation smoother, defaulting to the stored sample.
-            %   Not sample-checked - see SVAR.MINNESOTAMNIWBVARM/SIMSMOOTH.
-            [Y, args] = obj.peelSample(varargin, "simsmooth", ...
-                "minnesotanbvarm", false);
-            [varargout{1:nargout}] = simsmooth@normalbvarm(obj, Y, args{:});
+            %   Not sample-checked - see SVAR.MINNESOTAMNIWBVARM/SIMSMOOTH.);
+            [varargout{1:nargout}] = simsmooth@normalbvarm(obj, obj.Y, varargin{:});
         end
 
     end

@@ -104,8 +104,8 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
 
         function [Posterior, Summary] = estimate(obj, varargin)
             %ESTIMATE Analytic conjugate posterior for the stored sample.
-            [Y, args] = obj.peelSample(varargin, "estimate", "minnesotamniwbvarm");
-            [MN, Summary] = estimate@conjugatebvarm(obj, Y, args{:});
+      
+            [MN, Summary] = estimate@conjugatebvarm(obj, obj.Y, varargin{:});
 
             % Return a plain conjugatebvarm posterior (it is no longer a
             % Minnesota prior, so do not pretend it is one).
@@ -120,22 +120,17 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
 
         function varargout = simulate(obj, varargin)
             %SIMULATE Draw coefficients and covariance given the stored sample.
-            [Y, args] = obj.peelSample(varargin, "simulate", "minnesotamniwbvarm");
-            [varargout{1:nargout}] = simulate@conjugatebvarm(obj, Y, args{:});
+            [varargout{1:nargout}] = simulate@conjugatebvarm(obj, obj.Y, varargin{:});
         end
 
-        function varargout = forecast(obj, numperiods, varargin)
+        function varargout = forecast(obj, numperiods)
             %FORECAST Forecast responses beyond the stored sample.
             arguments
                 obj        (1,1) svar.minnesotamniwbvarm
                 numperiods (1,1) double {mustBeInteger, mustBePositive}
             end
-            arguments (Repeating)
-                varargin
-            end
-            [Y, args] = obj.peelSample(varargin, "forecast", "minnesotamniwbvarm");
             [varargout{1:nargout}] = ...
-                forecast@conjugatebvarm(obj, numperiods, Y, args{:});
+                forecast@conjugatebvarm(obj, numperiods, obj.Y);
         end
 
         function varargout = simsmooth(obj, varargin)
@@ -146,9 +141,7 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
             %   over the forecast horizon - so a strict equality check here
             %   would reject the toolbox's own legitimate calls. The check
             %   belongs on the user-facing entry points above.
-            [Y, args] = obj.peelSample(varargin, "simsmooth", ...
-                "minnesotamniwbvarm", false);
-            [varargout{1:nargout}] = simsmooth@conjugatebvarm(obj, Y, args{:});
+            [varargout{1:nargout}] = simsmooth@conjugatebvarm(obj, obj.Y, varargin{:});
         end
 
     end
