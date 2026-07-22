@@ -34,7 +34,7 @@ classdef logMarginalLikelihoodTest < matlab.unittest.TestCase
 
         function mniwMinnesotaDelegatesToConjugateDispatcher(testCase)
             Y = logMarginalLikelihoodTest.sampleData();
-            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
+            prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4]);
             plain = conjugatebvarm(prior.NumSeries, prior.P, ...
                 IncludeConstant=prior.IncludeConstant, ...
                 IncludeTrend=prior.IncludeTrend, ...
@@ -50,7 +50,7 @@ classdef logMarginalLikelihoodTest < matlab.unittest.TestCase
 
         function normalMinnesotaDelegatesToNormalDispatcher(testCase)
             Y = logMarginalLikelihoodTest.sampleData();
-            prior = svar.minnesotanbvarm(2, 1, [1 4]);
+            prior = svar.minnesotanbvarm(2, 1, Y, Psi=[1 4]);
             plain = normalbvarm(prior.NumSeries, prior.P, ...
                 IncludeConstant=prior.IncludeConstant, ...
                 IncludeTrend=prior.IncludeTrend, ...
@@ -66,7 +66,7 @@ classdef logMarginalLikelihoodTest < matlab.unittest.TestCase
 
         function mniwMinnesotaDummiesReturnFiniteLogEvidence(testCase)
             Y = logMarginalLikelihoodTest.sampleData();
-            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4], ...
+            prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4], ...
                 lambda4=10, lambda5=5);
 
             logML = logMarginalLikelihood(prior, Y);
@@ -76,7 +76,7 @@ classdef logMarginalLikelihoodTest < matlab.unittest.TestCase
 
         function usesTheSampleStoredOnTheModel(testCase)
             Y = logMarginalLikelihoodTest.sampleData();
-            prior = minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=10);
+            prior = svar.minnesotamniwbvarm(2, 1, Y, Psi=[1 4], lambda4=10);
 
             testCase.verifyEqual(logMarginalLikelihood(prior), ...
                 logMarginalLikelihood(prior, Y), AbsTol=0);
@@ -99,7 +99,7 @@ classdef logMarginalLikelihoodTest < matlab.unittest.TestCase
 
         function minnesotaInwModelErrors(testCase)
             Y = logMarginalLikelihoodTest.sampleData();
-            prior = svar.minnesotainwbvarm(2, 1, [1 4]);
+            prior = svar.minnesotainwbvarm(2, 1, Y, Psi=[1 4]);
 
             testCase.verifyError(@() logMarginalLikelihood(prior, Y), ...
                 "logMarginalLikelihood:unsupportedModel");

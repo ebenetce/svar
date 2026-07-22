@@ -8,7 +8,7 @@ classdef glpHyperpriorTest < matlab.unittest.TestCase
             [mdl, info] = glp(2, 1, Y, Psi=[0.5 1.0], ...
                 OptimOptions=glpHyperpriorTest.optimOptions());
 
-            testCase.verifyClass(mdl, "minnesotamniwbvarm");
+            testCase.verifyClass(mdl, "svar.minnesotamniwbvarm");
             testCase.verifyFalse(info.PsiFree);
             testCase.verifyEqual(info.FinalPsi, [0.5 1.0], AbsTol=0);
         end
@@ -19,7 +19,7 @@ classdef glpHyperpriorTest < matlab.unittest.TestCase
             [mdl, info] = glp(2, 1, Y, Psi=[0.1 0.2; 2.0 3.0], ...
                 OptimOptions=glpHyperpriorTest.optimOptions());
 
-            testCase.verifyClass(mdl, "minnesotamniwbvarm");
+            testCase.verifyClass(mdl, "svar.minnesotamniwbvarm");
             testCase.verifyTrue(info.PsiFree);
             testCase.verifyEqual(info.PsiNames, ["Psi1" "Psi2"]);
         end
@@ -33,7 +33,7 @@ classdef glpHyperpriorTest < matlab.unittest.TestCase
                 lambda1=hyperprior("Gamma", 0.2, 0.4, Bounds=[0.05 0.5]), ...
                 OptimOptions=glpHyperpriorTest.optimOptions());
 
-            testCase.verifyClass(mdl, "minnesotamniwbvarm");
+            testCase.verifyClass(mdl, "svar.minnesotamniwbvarm");
             testCase.verifyTrue(info.PsiFree);
             testCase.verifyTrue(info.UsedHyperprior);
             testCase.verifyEqual(numel(info.X0), 3);

@@ -112,7 +112,7 @@ useHyperprior = ~isempty(fieldnames(lamPrior)) || ~isempty(psiPrior);
     function negObj = objective(x)
         [lambdaArgs, candPsi] = unpackAll(x);
         try
-            mdlCandidate = minnesotamniwbvarm(numseries, numlags, Y, ...
+            mdlCandidate = svar.minnesotamniwbvarm(numseries, numlags, Y, ...
                 "Psi", candPsi, lambdaArgs{:}, fixedArgs{:}, buildArgs{:});
             negObj = -logMarginalLikelihood(mdlCandidate);
         catch
@@ -142,7 +142,7 @@ else
 end
 
 [finalLambdaArgs, finalPsi] = unpackAll(xHat);
-mdl = minnesotamniwbvarm(numseries, numlags, Y, ...
+mdl = svar.minnesotamniwbvarm(numseries, numlags, Y, ...
     "Psi", finalPsi, finalLambdaArgs{:}, fixedArgs{:}, buildArgs{:});
 
 if nargout > 1
