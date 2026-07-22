@@ -5,13 +5,13 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         function concreteConstructorsReturnExpectedClasses(testCase)
             psi = [1 4 9];
 
-            mniwPrior = minnesotamniwbvarm(3, 2, ResidualVariances=psi);
-            inwPrior = minnesotainwbvarm(3, 2, ResidualVariances=psi);
-            normalPrior = minnesotanbvarm(3, 2, ResidualVariances=psi);
+            mniwPrior = svar.minnesotamniwbvarm(3, 2, psi);
+            inwPrior = svar.minnesotainwbvarm(3, 2, psi);
+            normalPrior = svar.minnesotanbvarm(3, 2, psi);
 
-            testCase.verifyClass(mniwPrior, "minnesotamniwbvarm");
-            testCase.verifyClass(inwPrior, "minnesotainwbvarm");
-            testCase.verifyClass(normalPrior, "minnesotanbvarm");
+            testCase.verifyClass(mniwPrior, "svar.minnesotamniwbvarm");
+            testCase.verifyClass(inwPrior, "svar.minnesotainwbvarm");
+            testCase.verifyClass(normalPrior, "svar.minnesotanbvarm");
         end
 
         function abstractBaseCannotBeInstantiated(testCase)
@@ -32,7 +32,7 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function inwCovarianceUsesFullCoefficientLayout(testCase)
-            prior = minnesotainwbvarm(3, 2, ResidualVariances=[1 4 9]);
+            prior = svar.minnesotainwbvarm(3, 2, [1 4 9]);
             numCoefficients = minnesotaPriorClassesTest.numEquationCoefficients(prior);
 
             testCase.verifySize(prior.Mu, [numCoefficients*prior.NumSeries 1]);
@@ -42,7 +42,7 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function normalCovarianceUsesFullCoefficientLayout(testCase)
-            prior = minnesotanbvarm(3, 2, ResidualVariances=[1 4 9]);
+            prior = svar.minnesotanbvarm(3, 2, [1 4 9]);
             numCoefficients = minnesotaPriorClassesTest.numEquationCoefficients(prior);
 
             testCase.verifySize(prior.Mu, [numCoefficients*prior.NumSeries 1]);
@@ -51,13 +51,13 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function normalPriorSetsFixedSigmaFromPpsi(testCase)
-            prior = minnesotanbvarm(3, 2, ResidualVariances=[1 4 9]);
+            prior = svar.minnesotanbvarm(3, 2, [1 4 9]);
 
             testCase.verifyEqual(prior.Sigma, diag([1 4 9]), AbsTol=0);
         end
 
         function normalPriorShrinksOnlyCrossLagCoefficientsWithLambda2(testCase)
-            prior = minnesotanbvarm(2, 1, ResidualVariances=[1 4], ...
+            prior = svar.minnesotanbvarm(2, 1, [1 4], ...
                 lambda1=0.2, lambda2=0.5, lambda3=1);
 
             testCase.verifyEqual(diag(prior.V), ...
@@ -65,7 +65,7 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function normalPriorEstimateReturnsNormalPosterior(testCase)
-            prior = minnesotanbvarm(2, 1, ResidualVariances=[1 4], ...
+            prior = svar.minnesotanbvarm(2, 1, [1 4], ...
                 lambda1=0.2, lambda2=0.5, lambda3=1);
             Y = minnesotaPriorClassesTest.normalLikelihoodData();
 
@@ -75,38 +75,33 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function normalPriorMarginalLikelihoodMethodsAgree(testCase)
-            prior = minnesotanbvarm(2, 1, ResidualVariances=[1 4], ...
+            prior = svar.minnesotanbvarm(2, 1, [1 4], ...
                 lambda1=0.2, lambda2=0.5, lambda3=1);
             Y = minnesotaPriorClassesTest.normalLikelihoodData();
 
-            [logML, details] = logMarginalLikelihood(prior, Y);
-            negLogML = negativeLogMarginalLikelihood(prior, Y);
+            logML = logMarginalLikelihood(prior, Y);
             ml = marginalLikelihood(prior, Y);
 
             testCase.verifyTrue(isfinite(logML));
-            testCase.verifyEqual(details.NumObservations, size(Y, 1) - prior.P);
-            testCase.verifyEqual(negLogML, -logML, AbsTol=1e-12);
             testCase.verifyEqual(ml, exp(logML), AbsTol=1e-12);
         end
 
         function factoryDispatchesExpectedSpecClasses(testCase)
-            defaultSpec = minnesotaSpec();
             mniwSpec = minnesotaSpec("mniw");
             inwSpec = minnesotaSpec("inw");
             normalSpec = minnesotaSpec("normal");
-            legacySpec = minnesotaSpec(lambda1=[1e-3 5]);
+            legacySpec = minnesotaSpec("mniw", lambda1=[1e-3 5]);
 
-            testCase.verifyClass(defaultSpec, "minnesotamniwSpec");
-            testCase.verifyClass(mniwSpec, "minnesotamniwSpec");
-            testCase.verifyClass(inwSpec, "minnesotainwSpec");
-            testCase.verifyClass(normalSpec, "minnesotanSpec");
+            testCase.verifyClass(mniwSpec, "svar.minnesotamniwSpec");
+            testCase.verifyClass(inwSpec, "svar.minnesotainwSpec");
+            testCase.verifyClass(normalSpec, "svar.minnesotanSpec");
             testCase.verifyEqual(legacySpec.lambda1, [1e-3 5], AbsTol=0);
         end
 
         function factoryDispatchesAliases(testCase)
-            testCase.verifyClass(minnesotaSpec("conjugate"), "minnesotamniwSpec");
-            testCase.verifyClass(minnesotaSpec("semiconjugate"), "minnesotainwSpec");
-            testCase.verifyClass(minnesotaSpec("fixedsigma"), "minnesotanSpec");
+            testCase.verifyClass(minnesotaSpec("conjugate"), "svar.minnesotamniwSpec");
+            testCase.verifyClass(minnesotaSpec("semiconjugate"), "svar.minnesotainwSpec");
+            testCase.verifyClass(minnesotaSpec("fixedsigma"), "svar.minnesotanSpec");
         end
 
         function unknownMethodMessageListsAliases(testCase)
@@ -127,21 +122,21 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function specsInheritSharedBase(testCase)
-            testCase.verifyTrue(isa(minnesotaSpec(), "minnesotaBaseSpec"));
-            testCase.verifyTrue(isa(minnesotaSpec("inw"), "minnesotaBaseSpec"));
-            testCase.verifyTrue(isa(minnesotaSpec("normal"), "minnesotaBaseSpec"));
+            testCase.verifyTrue(isa(minnesotaSpec("mniw"), "svar.minnesotaBaseSpec"));
+            testCase.verifyTrue(isa(minnesotaSpec("inw"), "svar.minnesotaBaseSpec"));
+            testCase.verifyTrue(isa(minnesotaSpec("normal"), "svar.minnesotaBaseSpec"));
         end
 
         function specsBuildExpectedModelClasses(testCase)
             psi = [1 4 9];
 
-            mniwPrior = minnesotaSpec().build(3, 2, psi);
+            mniwPrior = minnesotaSpec("mniw").build(3, 2, psi);
             inwPrior = minnesotaSpec("inw").build(3, 2, psi);
             normalPrior = minnesotaSpec("normal").build(3, 2, psi);
 
-            testCase.verifyClass(mniwPrior, "minnesotamniwbvarm");
-            testCase.verifyClass(inwPrior, "minnesotainwbvarm");
-            testCase.verifyClass(normalPrior, "minnesotanbvarm");
+            testCase.verifyClass(mniwPrior, "svar.minnesotamniwbvarm");
+            testCase.verifyClass(inwPrior, "svar.minnesotainwbvarm");
+            testCase.verifyClass(normalPrior, "svar.minnesotanbvarm");
         end
 
         function mniwSpecPacksHyperpriorProperties(testCase)

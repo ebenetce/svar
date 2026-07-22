@@ -49,7 +49,7 @@ arguments
     nvp2.SeriesNames
 end
 
-if ~isa(nvp.Spec, "minnesotamniwSpec")
+if ~isa(nvp.Spec, "svar.minnesotamniwSpec")
     error("glp:unsupportedSpec", ...
         "GLP requires a minnesotaSpec(""mniw"") because it uses an analytic marginal likelihood.");
 end
@@ -96,7 +96,7 @@ useHyperprior = ~isempty(baseSpec.hyperpriorFields()) || ~isempty(psiPrior);
         [candSpec, candPsi] = unpackAll(x);
         try
             mdlCandidate = candSpec.build(numseries, numlags, candPsi, buildArgs{:});
-            negObj = mdlCandidate.negativeLogMarginalLikelihood(Y);
+            negObj = -logMarginalLikelihood(mdlCandidate, Y);
         catch
             negObj = 1e10;
         end

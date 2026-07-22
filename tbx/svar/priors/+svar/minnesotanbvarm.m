@@ -12,16 +12,16 @@ classdef (Hidden) minnesotanbvarm < normalbvarm & svar.minnesotabvarmBase & matl
     end
 
     methods
-        function obj = minnesotanbvarm(numseries, numlags, nvp, nvp2)
+        function obj = minnesotanbvarm(numseries, numlags, residualVariances, nvp, nvp2)
             arguments
                 numseries (1,1) double {mustBeInteger, mustBePositive}
                 numlags   (1,1) double {mustBeInteger, mustBePositive}
-                nvp.ResidualVariances (1,:) double {mustBePositive} = []
+                residualVariances (1,:) double {mustBePositive}
                 nvp.lambda1   (1,1) double {mustBePositive}    = 0.2
                 nvp.lambda2   (1,1) double {mustBePositive}    = 0.5
                 nvp.lambda3   (1,1) double {mustBeNonnegative} = 1
                 nvp.Vc        (1,1) double {mustBePositive}    = 1e4
-                nvp.PriorMean (1,:) double = []
+                nvp.PriorMean (1,:) double = ones(1, numseries);
                 nvp2.Description
                 nvp2.IncludeConstant
                 nvp2.IncludeTrend
@@ -32,8 +32,8 @@ classdef (Hidden) minnesotanbvarm < normalbvarm & svar.minnesotabvarmBase & matl
             args = namedargs2cell(nvp2);
             obj@normalbvarm(numseries, numlags, args{:});
 
-            [residualVariances, priorMean] = obj.validateMinnesotaInputs( ...
-                nvp.ResidualVariances, nvp.PriorMean, "minnesotanbvarm");
+            priorMean = obj.validateMinnesotaInputs( ...
+                residualVariances, nvp.PriorMean, "minnesotanbvarm");
 
             obj.ResidualVariances = residualVariances;
             obj.lambda1           = nvp.lambda1;
@@ -71,59 +71,6 @@ classdef (Hidden) minnesotanbvarm < normalbvarm & svar.minnesotabvarmBase & matl
                 Sigma           = NormalPosterior.Sigma);
         end
 
-        function [logML, details] = logMarginalLikelihood(obj, Y)
-            %LOGMARGINALLIKELIHOOD log p(Y | hyperparameters).
-            arguments
-                obj
-                Y double {mustBeNonempty}
-            end
-
-            [XX, XY, YY, numObs] = obj.minnesotaSufficientStatistics(Y, ...
-                "minnesotanbvarm");
-            details = struct("NumObservations", numObs);
-            try
-                [posteriorMu, posteriorV, posteriorPrecision] = ...
-                    obj.normalPosteriorMoments(XX, XY);
-
-                numSeries = obj.NumSeries;
-                sigma = (obj.Sigma + obj.Sigma')/2;
-                sigmaInv = sigma \ eye(numSeries);
-                priorCovariance = (obj.V + obj.V')/2;
-                priorPrecision = priorCovariance \ eye(size(priorCovariance, 1));
-
-                sigmaFactor = chol(sigma, "lower");
-                priorFactor = chol(priorCovariance, "lower");
-                posteriorPrecisionFactor = chol( ...
-                    (posteriorPrecision + posteriorPrecision')/2, "lower");
-
-                logDetSigma = 2*sum(log(diag(sigmaFactor)));
-                logDetPrior = 2*sum(log(diag(priorFactor)));
-                logDetPosteriorPrecision = 2*sum(log(diag(posteriorPrecisionFactor)));
-
-                priorMean = obj.Mu(:);
-                dataQuadratic = trace(sigmaInv*YY);
-                priorQuadratic = priorMean'*(priorPrecision*priorMean);
-                posteriorQuadratic = posteriorMu'*(posteriorPrecision*posteriorMu);
-
-                logML = -0.5*(numObs*numSeries*log(2*pi) ...
-                    + numObs*logDetSigma ...
-                    + logDetPrior ...
-                    + logDetPosteriorPrecision ...
-                    + dataQuadratic ...
-                    + priorQuadratic ...
-                    - posteriorQuadratic);
-
-                if nargout > 1
-                    details = struct( ...
-                        "NumObservations", numObs, ...
-                        "PosteriorMu", posteriorMu, ...
-                        "PosteriorV", posteriorV);
-                end
-            catch
-                logML = -Inf;
-            end
-        end
-
     end
 
     methods (Access = private)
@@ -155,19 +102,6 @@ classdef (Hidden) minnesotanbvarm < normalbvarm & svar.minnesotabvarmBase & matl
             V = diag(vDiag);
         end
 
-        function [posteriorMu, posteriorV, posteriorPrecision] = normalPosteriorMoments(obj, XX, XY)
-            n = obj.NumSeries;
-            priorCovariance = (obj.V + obj.V')/2;
-            sigmaInv = obj.Sigma \ eye(n);
-            priorPrecision = priorCovariance \ eye(size(priorCovariance, 1));
-            posteriorPrecision = priorPrecision ...
-                + kron(sigmaInv, XX);
-            posteriorV = posteriorPrecision \ eye(size(posteriorPrecision, 1));
-            posteriorV = (posteriorV + posteriorV')/2;
-            dataMoment = XY*sigmaInv;
-            posteriorMu = posteriorV*(priorPrecision*obj.Mu(:) ...
-                + dataMoment(:));
-        end
     end
 
     methods (Access = protected)

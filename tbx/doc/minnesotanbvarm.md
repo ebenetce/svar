@@ -93,8 +93,18 @@ Inherited `normalbvarm` properties such as `NumSeries`, `P`, `Mu`, `V`, and
 
 ## Object Functions
 
-Inherited `normalbvarm` object functions are available where they are valid for
-the resulting prior or posterior.
+`logMarginalLikelihood`
+: Evaluate the analytic fixed-Sigma Normal log marginal likelihood.
+
+`negativeLogMarginalLikelihood`
+: Return the negative log marginal likelihood for use as an optimizer
+  objective.
+
+`marginalLikelihood`
+: Return the marginal likelihood on the original scale.
+
+Inherited `normalbvarm` object functions are also available where they are valid
+for the resulting prior or posterior.
 
 ## Examples
 
@@ -129,6 +139,5 @@ for cross lags.
 
 ## See Also
 
-`minnesotaSpec`, `minnesotanSpec`, `minnesotainwbvarm`, `normalbvarm`,
-`estimateResidualVariances`
-
+`minnesotaSpec`, `minnesotanSpec`, `minnesotainwbvarm`,
+`logMarginalLikelihood`, `normalbvarm`, `estimateResidualVariances`

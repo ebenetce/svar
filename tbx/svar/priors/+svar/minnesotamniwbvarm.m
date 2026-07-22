@@ -53,17 +53,17 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase 
 
     methods
 
-        function obj = minnesotamniwbvarm(numseries, numlags, nvp, nvp2)
+        function obj = minnesotamniwbvarm(numseries, numlags, residualVariances, nvp, nvp2)
             arguments
                 numseries (1,1) double {mustBeInteger, mustBePositive}
                 numlags   (1,1) double {mustBeInteger, mustBePositive}
-                nvp.ResidualVariances (1,:) double {mustBePositive} = []
+                residualVariances (1,:) double {mustBePositive}
                 nvp.lambda1   (1,1) double {mustBePositive}    = 0.2
                 nvp.lambda3   (1,1) double {mustBeNonnegative} = 1
                 nvp.lambda4   (1,1) double {mustBePositive}    = Inf
                 nvp.lambda5   (1,1) double {mustBePositive}    = Inf
                 nvp.Vc        (1,1) double {mustBePositive}    = 1e4
-                nvp.PriorMean (1,:) double = []
+                nvp.PriorMean (1,:) double = ones(1, numseries);
                 nvp2.Description
                 nvp2.IncludeConstant
                 nvp2.IncludeTrend
@@ -76,8 +76,8 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase 
             args = namedargs2cell(nvp2);
             obj  = obj@conjugatebvarm(numseries, numlags, args{:});
 
-            [residualVariances, priorMean] = obj.validateMinnesotaInputs( ...
-                nvp.ResidualVariances, nvp.PriorMean, "minnesotamniwbvarm");
+            priorMean = obj.validateMinnesotaInputs( ...
+                residualVariances, nvp.PriorMean, "minnesotamniwbvarm");
 
             % Store the hyperparameters (read-only from here on).
             obj.ResidualVariances = residualVariances;
@@ -119,28 +119,6 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase 
                 IncludeTrend    = MN.IncludeTrend, ...
                 NumPredictors   = MN.NumPredictors, ...
                 Mu = MN.Mu, V = MN.V, Omega = MN.Omega, DoF = MN.DoF);
-        end
-
-        function [logML, details] = logMarginalLikelihood(obj, Y)
-            %LOGMARGINALLIKELIHOOD  log p(Y | hyperparameters).
-            %   With dummy observations this is evaluated against the
-            %   dummy-augmented prior using the REAL data only, which equals
-            %   p(Y, dummies) / p(dummies): the dummies' own evidence cancels.
-            %   This is the correct objective for hyperparameter selection;
-            %   feeding the dummy rows in as extra data would instead return
-            %   p(Y, dummies) and bias the tuner. This returns the PURE
-            %   marginal likelihood - any hyperprior on the lambdas belongs in
-            %   the optimiser layer (see logHyperprior), not here.
-            arguments
-                obj
-                Y double {mustBeNonempty}
-            end
-            prior          = obj.applyDummies(Y);
-            [XX, XY, YY, numObs] = obj.minnesotaSufficientStatistics(Y, ...
-                "minnesotamniwbvarm");
-            [logML, details] = minnesotamniwbvarm.conjugateLogML( ...
-                prior.Mu, prior.V, prior.Omega, prior.DoF, ...
-                XX, XY, YY, numObs, obj.NumSeries);
         end
 
         function varargout = simulate(obj, Y, opts)
@@ -224,7 +202,7 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase 
     end
 
     % ---- data-dependent pieces (dummies, regression matrices) -----------
-    methods (Access = private)
+    methods
 
         function prior = applyDummies(obj, Y)
             %APPLYDUMMIES Fold any active dummy priors into the base prior.
@@ -309,89 +287,6 @@ classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase 
             VOut     = (Vnew + Vnew')/2;
             OmegaOut = (OmegaN + OmegaN')/2;
             DoFOut   = DoF + size(Yobs, 1);
-        end
-
-        function [logML, details] = conjugateLogML(Mu, V, Omega, DoF, XX, XY, YY, numObs, n)
-            %CONJUGATELOGML Analytic log marginal likelihood for the conjugate VAR.
-            %   Evaluated against the supplied (dummy-augmented) prior using
-            %   the real-data sufficient statistics only.
-            %
-            %   Numerics: uses the stable ratio-of-determinants ("eig + 1")
-            %   form. The two log-det differences that appear in the marginal
-            %   likelihood are computed as log det(I + M) with M >= 0, so they
-            %   stay finite even when the prior V or Omega is near-singular -
-            %   which a hyperparameter optimiser will inevitably probe. The
-            %   whole computation is guarded: any breakdown (e.g. chol of a
-            %   collapsed prior) returns logML = -Inf, which an optimiser reads
-            %   as "this hyperparameter set is very bad" rather than throwing.
-            k        = size(V, 1);
-            priorDoF = DoF;
-            postDoF  = DoF + numObs;
-
-            details = struct();
-
-            try
-                B0    = reshape(Mu, k, n);
-                V0inv = V \ eye(k);
-                prec  = V0inv + XX;
-                Bn    = prec \ (V0inv*B0 + XY);
-
-                % Posterior scale as prior scale plus the residual SS at the
-                % posterior mean and the prior-mean shift penalty.
-                resid = YY - Bn'*XY - XY'*Bn + Bn'*XX*Bn;
-                resid = (resid + resid')/2;
-                shift = Bn - B0;
-                incr  = resid + shift'*(V0inv*shift);
-                incr  = (incr + incr')/2;                       % PSD
-
-                % logdet(OmegaN) - logdet(Omega) = sum log( eig(inv(Omega)*incr) + 1 ).
-                % Lo Lo' = Omega  =>  bbb = Lo^{-1} incr Lo^{-T} is symmetric
-                % with eig(bbb) = eig(inv(Omega) incr) >= 0.
-                Lo   = chol((Omega + Omega')/2, 'lower');
-                bbb  = Lo \ incr / Lo';
-                eb   = real(eig((bbb + bbb')/2));
-                eb(eb < 0) = 0;
-                sumOmegaRatio = sum(log(eb + 1));
-                logDetOmega0  = 2*sum(log(diag(Lo)));           % reuse the factor
-
-                % logdet(Vn) - logdet(V0) = -sum log( eig(X'X * V0) + 1 ).
-                % D D' = V0  =>  aaa = D'(X'X)D is symmetric, eig = eig(X'X V0).
-                D    = chol((V + V')/2, 'lower');
-                aaa  = D'*XX*D;
-                ea   = real(eig((aaa + aaa')/2));
-                ea(ea < 0) = 0;
-                sumVRatio = sum(log(ea + 1));
-
-                logML = -0.5*numObs*n*log(pi) ...
-                    + minnesotamniwbvarm.logMvGamma(0.5*postDoF,  n) ...
-                    - minnesotamniwbvarm.logMvGamma(0.5*priorDoF, n) ...
-                    - 0.5*numObs*logDetOmega0 ...
-                    - 0.5*postDoF*sumOmegaRatio ...
-                    - 0.5*n*sumVRatio;
-
-                if nargout > 1
-                    Vn     = prec \ eye(k);
-                    OmegaN = (Omega + incr + (Omega + incr)')/2;
-                    details = struct( ...
-                        "NumObservations", numObs, ...
-                        "PriorDoF",        priorDoF, ...
-                        "PosteriorDoF",    postDoF, ...
-                        "PosteriorMu",     Bn(:), ...
-                        "PosteriorV",      (Vn + Vn')/2, ...
-                        "PosteriorOmega",  OmegaN);
-                end
-            catch
-                logML   = -Inf;
-                details = struct("NumObservations", numObs, ...
-                                 "PriorDoF", priorDoF, "PosteriorDoF", postDoF);
-            end
-        end
-
-        function value = logMvGamma(a, dimension)
-            %LOGMVGAMMA Log of the multivariate gamma function.
-            j     = 1:dimension;
-            value = dimension*(dimension - 1)*0.25*log(pi) ...
-                  + sum(gammaln(a + 0.5*(1 - j)));
         end
 
     end

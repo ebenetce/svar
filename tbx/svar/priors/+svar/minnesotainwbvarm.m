@@ -75,16 +75,16 @@ classdef (Hidden) minnesotainwbvarm < semiconjugatebvarm & svar.minnesotabvarmBa
 
     methods
 
-        function obj = minnesotainwbvarm(numseries, numlags, nvp, nvp2)
+        function obj = minnesotainwbvarm(numseries, numlags, residualVariances, nvp, nvp2)
             arguments
                 numseries (1,1) double {mustBeInteger, mustBePositive}
                 numlags   (1,1) double {mustBeInteger, mustBePositive}
-                nvp.ResidualVariances (1,:) double {mustBePositive} = []
+                residualVariances (1,:) double {mustBePositive}
                 nvp.lambda1   (1,1) double {mustBePositive}    = 0.2
                 nvp.lambda2   (1,1) double {mustBePositive}    = 0.5
                 nvp.lambda3   (1,1) double {mustBeNonnegative} = 1
                 nvp.Vc        (1,1) double {mustBePositive}    = 1e4
-                nvp.PriorMean (1,:) double = []
+                nvp.PriorMean (1,:) double = ones(1, numseries);
                 nvp2.Description
                 nvp2.IncludeConstant
                 nvp2.IncludeTrend
@@ -95,8 +95,8 @@ classdef (Hidden) minnesotainwbvarm < semiconjugatebvarm & svar.minnesotabvarmBa
             args = namedargs2cell(nvp2);
             obj  = obj@semiconjugatebvarm(numseries, numlags, args{:});
 
-            [residualVariances, priorMean] = obj.validateMinnesotaInputs( ...
-                nvp.ResidualVariances, nvp.PriorMean, "minnesotainwbvarm");
+            priorMean = obj.validateMinnesotaInputs( ...
+                residualVariances, nvp.PriorMean, "minnesotainwbvarm");
 
             obj.ResidualVariances = residualVariances;
             obj.lambda1           = nvp.lambda1;

@@ -2,8 +2,8 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
     %MINNESOTABASESPEC Shared scalar-or-bounds behavior for Minnesota specs.
 
     properties
-        lambda1   (1,:) {mustBeScalarOrBounds} = 0.2
-        lambda3   (1,:) {mustBeScalarOrBounds} = 1
+        lambda1   (1,:) {svar.mustBeScalarOrBounds} = 0.2
+        lambda3   (1,:) {svar.mustBeScalarOrBounds} = 1
         Vc        (1,1) double {mustBePositive}       = 1e4
         PriorMean (1,:) double = []
     end
@@ -11,7 +11,7 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
     methods
         function tf = isFree(spec, name)
             arguments
-                spec (1,1) minnesotaBaseSpec
+                spec (1,1) svar.minnesotaBaseSpec
                 name (1,1) string
             end
             tf = numel(spec.(name)) == 2 || isa(spec.(name), "hyperprior");
@@ -19,7 +19,7 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
 
         function names = freeFields(spec)
             arguments
-                spec (1,1) minnesotaBaseSpec
+                spec (1,1) svar.minnesotaBaseSpec
             end
             hyperparameters = spec.hyperparameterNames();
             mask = arrayfun(@(n) spec.isFree(n), hyperparameters);
@@ -28,14 +28,14 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
 
         function tf = isResolved(spec)
             arguments
-                spec (1,1) minnesotaBaseSpec
+                spec (1,1) svar.minnesotaBaseSpec
             end
             tf = isempty(spec.freeFields());
         end
 
         function [x0, lb, ub, names] = pack(spec)
             arguments
-                spec (1,1) minnesotaBaseSpec
+                spec (1,1) svar.minnesotaBaseSpec
             end
             names = spec.freeFields();
             n = numel(names);
@@ -58,7 +58,7 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
 
         function spec = unpack(spec, x, names)
             arguments
-                spec  (1,1) minnesotaBaseSpec
+                spec  (1,1) svar.minnesotaBaseSpec
                 x     (1,:) double
                 names (1,:) string
             end
@@ -73,7 +73,7 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
 
         function lp = logHyperprior(spec, x, names)
             arguments
-                spec  (1,1) minnesotaBaseSpec
+                spec  (1,1) svar.minnesotaBaseSpec
                 x     (1,:) double {mustBeFinite}
                 names (1,:) string
             end
@@ -92,7 +92,7 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
 
         function names = hyperpriorFields(spec)
             arguments
-                spec (1,1) minnesotaBaseSpec
+                spec (1,1) svar.minnesotaBaseSpec
             end
             hyperparameters = spec.hyperparameterNames();
             mask = arrayfun(@(n) isa(spec.(n), "hyperprior"), hyperparameters);
@@ -115,15 +115,13 @@ classdef (Abstract, Hidden) minnesotaBaseSpec
             end
         end
 
-        function args = modelConstructorArgs(spec, residualVariances, opts)
+        function args = modelConstructorArgs(spec, opts)
             arguments
-                spec (1,1) minnesotaBaseSpec
-                residualVariances (1,:) double {mustBePositive}
+                spec (1,1) svar.minnesotaBaseSpec
                 opts (1,1) struct
             end
             args = [namedargs2cell(opts), ...
-                {"ResidualVariances", residualVariances, ...
-                "lambda1", spec.lambda1, ...
+                {"lambda1", spec.lambda1, ...
                 "lambda3", spec.lambda3, ...
                 "Vc", spec.Vc, ...
                 "PriorMean", spec.PriorMean}];

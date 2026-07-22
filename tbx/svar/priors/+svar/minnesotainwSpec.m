@@ -29,12 +29,12 @@ classdef (Hidden) minnesotainwSpec < svar.minnesotaBaseSpec
     %   correct.
 
     properties
-        lambda2   (1,:) {mustBeScalarOrBounds} = 0.5   % cross-variable tightness (FREE here)
+        lambda2   (1,:) {svar.mustBeScalarOrBounds} = 0.5   % cross-variable tightness (FREE here)
     end
 
     methods (Static, Hidden)
         function spec = create(varargin)
-            spec = minnesotainwSpec(varargin{:});
+            spec = svar.minnesotainwSpec(varargin{:});
         end
     end
 
@@ -46,7 +46,7 @@ classdef (Hidden) minnesotainwSpec < svar.minnesotaBaseSpec
                 nvp.lambda2   (1,:)
                 nvp.lambda3   (1,:)
                 nvp.Vc        (1,1) double
-                nvp.PriorMean (1,:) double
+                nvp.PriorMean (1,:) double = 1
             end
             spec = spec.assignSpecInputs(nvp);
         end
@@ -59,7 +59,7 @@ classdef (Hidden) minnesotainwSpec < svar.minnesotaBaseSpec
             %   residualVariances is taken precomputed. Errors if the spec
             %   still has free fields - build needs concrete numbers, not ranges.
             arguments
-                spec              (1,1) minnesotainwSpec
+                spec              (1,1) svar.minnesotainwSpec
                 numseries         (1,1) double {mustBeInteger, mustBePositive}
                 numlags           (1,1) double {mustBeInteger, mustBePositive}
                 residualVariances (1,:) double {mustBePositive}
@@ -70,8 +70,8 @@ classdef (Hidden) minnesotainwSpec < svar.minnesotaBaseSpec
                 opts.Description
             end
             spec.assertResolvedForBuild();
-            args = spec.modelConstructorArgs(residualVariances, opts);
-            mdl = minnesotainwbvarm(numseries, numlags, args{:}, ...
+            args = spec.modelConstructorArgs(opts);
+            mdl = svar.minnesotainwbvarm(numseries, numlags, residualVariances, args{:}, ...
                 lambda2 = spec.lambda2);
         end
 

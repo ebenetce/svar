@@ -17,6 +17,10 @@ workflows that start from `conjugatebvarm` or `varm` models.
   tuning Minnesota priors. Use `build` to create the concrete model object.
 * [glp](glp.md) - Tune conjugate Minnesota hyperparameters by marginal
   likelihood.
+* [logMarginalLikelihood](logMarginalLikelihood.md) - Compute analytic log
+  evidence for supported Bayesian VAR priors.
+* [marginalLikelihood](marginalLikelihood.md) - Return marginal likelihood on
+  the original scale.
 * [hyperprior](hyperprior.md) - Scalar hyperprior for Minnesota-prior tuning.
 
 Minnesota implementation reference: `minnesotaSpec` returns

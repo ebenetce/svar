@@ -50,13 +50,13 @@ classdef (Hidden) minnesotamniwSpec < svar.minnesotaBaseSpec
     %   under this structure.
 
     properties
-        lambda4   (1,:) {mustBeScalarOrBounds} = Inf   % sum-of-coeff (Inf = off)
-        lambda5   (1,:) {mustBeScalarOrBounds} = Inf   % dummy-init-obs (Inf = off)
+        lambda4   (1,:) {svar.mustBeScalarOrBounds} = Inf   % sum-of-coeff (Inf = off)
+        lambda5   (1,:) {svar.mustBeScalarOrBounds} = Inf   % dummy-init-obs (Inf = off)
     end
 
     methods (Static, Hidden)
         function spec = create(varargin)
-            spec = minnesotamniwSpec(varargin{:});
+            spec = svar.minnesotamniwSpec(varargin{:});
         end
     end
 
@@ -69,7 +69,7 @@ classdef (Hidden) minnesotamniwSpec < svar.minnesotaBaseSpec
                 nvp.lambda4   (1,:)
                 nvp.lambda5   (1,:)
                 nvp.Vc        (1,1) double
-                nvp.PriorMean (1,:) double
+                nvp.PriorMean (1,:) double = 1
             end
             spec = spec.assignSpecInputs(nvp);
         end
@@ -82,7 +82,7 @@ classdef (Hidden) minnesotamniwSpec < svar.minnesotaBaseSpec
             %   outside any tuning loop). Errors if the spec still has free
             %   fields - build needs concrete numbers, not ranges.
             arguments
-                spec              (1,1) minnesotamniwSpec
+                spec              (1,1) svar.minnesotamniwSpec
                 numseries         (1,1) double {mustBeInteger, mustBePositive}
                 numlags           (1,1) double {mustBeInteger, mustBePositive}
                 residualVariances (1,:) double {mustBePositive}
@@ -93,8 +93,8 @@ classdef (Hidden) minnesotamniwSpec < svar.minnesotaBaseSpec
                 opts.Description
             end
             spec.assertResolvedForBuild();
-            args = spec.modelConstructorArgs(residualVariances, opts);
-            mdl = minnesotamniwbvarm(numseries, numlags, args{:}, ...
+            args = spec.modelConstructorArgs(opts);
+            mdl = svar.minnesotamniwbvarm(numseries, numlags, residualVariances, args{:}, ...
                 lambda4 = spec.lambda4, ...
                 lambda5 = spec.lambda5);
         end
@@ -102,12 +102,12 @@ classdef (Hidden) minnesotamniwSpec < svar.minnesotaBaseSpec
         function lp = logHyperprior(spec, x, names)
             %LOGHYPERPRIOR Log density from embedded lambda hyperpriors.
             arguments
-                spec  (1,1) minnesotamniwSpec
+                spec  (1,1) svar.minnesotamniwSpec
                 x     (1,:) double {mustBeFinite}
                 names (1,:) string
             end
 
-            lp = logHyperprior@minnesotaBaseSpec(spec, x, names);
+            lp = logHyperprior@svar.minnesotaBaseSpec(spec, x, names);
         end
 
     end

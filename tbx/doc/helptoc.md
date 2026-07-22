@@ -8,6 +8,8 @@
 * [Uniform IR prior](uniformirbvarm.md)
 * [Minnesota prior specification](minnesotaSpec.md)
 * [GLP hyperparameter tuning](glp.md)
+* [Log marginal likelihood](logMarginalLikelihood.md)
+* [Marginal likelihood](marginalLikelihood.md)
 * [Scalar hyperprior](hyperprior.md)
 
 ## Applications

@@ -1,41 +1,29 @@
-function spec = minnesotaSpec(varargin)
+function spec = minnesotaSpec(prior, varargin)
+
+arguments
+    prior (1,1) string
+end
+
+arguments (Repeating)
+    varargin
+end
 
 [aliasMap, aliasSummary] = localAliasMap();
 
-if nargin == 0
-    Method = "mniw";
-    specArgs = {};
-else
-    firstArg = varargin{1};
-    if (isstring(firstArg) || ischar(firstArg)) && isscalar(string(firstArg))
-        firstMethod = lower(erase(string(firstArg), ["-","_"," "]));
-        if isKey(aliasMap, firstMethod) || nargin == 1
-            Method = string(firstArg);
-            specArgs = varargin(2:end);
-        else
-            Method = "mniw";
-            specArgs = varargin;
-        end
-    else
-        Method = "mniw";
-        specArgs = varargin;
-    end
-end
-
-method = lower(erase(string(Method), ["-","_"," "]));
-if ~isKey(aliasMap, method)
+prior = lower(erase(string(prior), ["-","_"," "]));
+if ~isKey(aliasMap, prior)
     error("minnesotaSpec:unknownMethod", ...
-        "Unrecognized Method '%s'.%s%s", Method, newline, aliasSummary);
+        "Unrecognized Method '%s'.%s%s", prior, newline, aliasSummary);
 end
-method = aliasMap(method);
+prior = aliasMap(prior);
 
-switch method
+switch prior
     case "mniw"
-        spec = svar.minnesotamniwSpec.create(specArgs{:});
+        spec = svar.minnesotamniwSpec.create(varargin{:});
     case "inw"
-        spec = svar.minnesotainwSpec.create(specArgs{:});
+        spec = svar.minnesotainwSpec.create(varargin{:});
     case "normal"
-        spec = svar.minnesotanSpec.create(specArgs{:});
+        spec = svar.minnesotanSpec.create(varargin{:});
 end
 
 end
