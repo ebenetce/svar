@@ -39,15 +39,11 @@ codegen/
 *.sbproj.backup
 *.sbproj.bak
 
-examples/*
 !examples/MountfordUhlig2009/
 examples/MountfordUhlig2009/*
 !examples/MountfordUhlig2009/main.m
 !examples/SimsZha1999/
 examples/SimsZha1999/*
 !examples/SimsZha1999/main.m
-!examples/glp2012/
-examples/glp2012/*
-!examples/glp2012/main.m
 
 public/
