@@ -14,6 +14,7 @@ log-density used by `glp` and `minnesotaSpec` tuning workflows.
 hp = hyperprior(distribution,mode,sd)
 hp = hyperprior(distribution,mode,sd,Bounds=bounds)
 hp = hyperprior(distribution,mode,sd,X0=x0)
+hp = hyperprior(distribution,p1,p2,Parameterization="native",Bounds=bounds)
 ```
 
 ### Description
@@ -29,18 +30,34 @@ If `Bounds` is omitted, quantile bounds are computed from the distribution.
 If `X0` is omitted, the distribution mode is used when valid; otherwise the
 median is used.
 
+`hp = hyperprior(distribution,p1,p2,Parameterization="native")` takes the two
+positional inputs as the native parameters themselves, skipping the moment
+conversion. Use this for densities that no `(mode, sd)` pair identifies —
+the moment solve requires a finite standard deviation, so it cannot reach a
+gamma with shape below 1 or an inverse-gamma with shape below 2. Pass `Bounds`
+as well: the default quantile box is computed with `gaminv`/`betainv`, which
+does not converge in the far tail of such a diffuse density, and an unusable
+default raises `hyperprior:unusableDefaultBounds` rather than being stored.
+
 ## Input Arguments
 
 `distribution` - Distribution family
 : `"Gamma"` | `"InverseGamma"` | `"Beta"`.
 
 `mode` - Distribution mode
-: Positive scalar.
+: Positive scalar. Read as the first native parameter when
+  `Parameterization="native"`.
 
 `sd` - Distribution standard deviation
-: Positive scalar.
+: Positive scalar. Read as the second native parameter when
+  `Parameterization="native"`.
 
 ## Name-Value Arguments
+
+`Parameterization` - Meaning of the positional inputs
+: `"moments"` (default) | `"native"`. With `"moments"` the inputs are a mode
+  and a standard deviation; with `"native"` they are `Params` directly —
+  gamma and inverse-gamma shape and scale, or beta alpha and beta.
 
 `Bounds` - Optimizer bounds
 : Two-element vector `[lo hi]` inside the distribution support.
@@ -92,12 +109,16 @@ spec = minnesotaSpec("mniw",lambda1=hp);
 
 ### Use Inverse-Gamma Priors for Residual Variances
 
+The hyperprior on the residual-variance scale in Giannone, Lenza and Primiceri
+(2012) is an inverse-gamma with shape and scale both equal to `0.02^2`. It has
+neither a mean nor a variance, so it must be given natively.
+
 ```matlab
 psi0 = estimateResidualVariances(Y,1,Method="conditional");
 Psi = arrayfun(@(x) hyperprior("InverseGamma",0.02^2,0.02^2, ...
-    X0=x, Bounds=[1/100 100]*x), psi0);
+    Parameterization="native", X0=x, Bounds=[x/100 x*100]), psi0);
 
-PriorMdl = glp(size(Y,2),4,Y,Psi,Spec=spec);
+PriorMdl = glp(size(Y,2),5,Y,Psi=Psi);
 ```
 
 ### Evaluate a Log Density

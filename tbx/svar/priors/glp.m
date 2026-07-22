@@ -1,4 +1,4 @@
-function [mdl, info] = glp(numseries, numlags, Y, nvp, nvp2)
+function [mdl, info, chain] = glp(numseries, numlags, Y, nvp, nvp2)
 %GLP Tune Minnesota hyperparameters by marginal likelihood.
 %   mdl = GLP(NUMSERIES,NUMLAGS,Y) tunes the free hyperparameters of a
 %   MINNESOTAMNIWBVARM prior by maximising its analytic marginal likelihood
@@ -29,6 +29,29 @@ function [mdl, info] = glp(numseries, numlags, Y, nvp, nvp2)
 %   hyperparameters were free, their bounds and starting point, the
 %   maximiser, and the fmincon exit information.
 %
+%   Integrating over the hyperparameters
+%   ------------------------------------
+%   [mdl,info,chain] = GLP(...,NumDraws=M) additionally samples the
+%   hyperparameter posterior instead of only maximising it, and returns M
+%   draws of the hyperparameters AND of the VAR parameters they imply. This
+%   is the Metropolis step of Giannone, Lenza and Primiceri (2012), appendix
+%   B: the maximiser above is only its step 1.
+%
+%   The sampler is a random walk whose proposal covariance is the inverse
+%   Hessian of the negative log posterior at the maximiser, computed by
+%   central differences, scaled by ProposalScale squared. Because the search
+%   runs in natural, box-constrained coordinates, that Hessian needs no
+%   reparameterisation; a candidate outside the box is simply rejected. Tune
+%   ProposalScale for an acceptance rate around 0.2-0.3 and check
+%   chain.AcceptanceRate.
+%
+%       NumDraws       draws KEPT (0, the default, means maximise only)
+%       BurnIn         draws discarded first (default: NumDraws)
+%       ProposalScale  random-walk step size c (default 1)
+%
+%   Bands built from chain widen those built from mdl alone, because the
+%   latter condition on one value of the hyperparameters.
+%
 %   Example
 %   -------
 %       mdl = glp(size(Y,2), 4, Y, ...
@@ -56,6 +79,10 @@ arguments
         FunctionTolerance = 1e-12, ...
         StepTolerance = 1e-12, ...
         ConstraintTolerance = 1e-12)
+    nvp.NumDraws      (1,1) double {mustBeInteger, mustBeNonnegative} = 0
+    nvp.BurnIn              double {mustBeScalarOrEmpty, mustBeInteger, ...
+                                    mustBeNonnegative} = []
+    nvp.ProposalScale (1,1) double {mustBePositive} = 1
     nvp2.Description
     nvp2.IncludeConstant
     nvp2.IncludeTrend
@@ -109,8 +136,11 @@ useHyperprior = ~isempty(fieldnames(lamPrior)) || ~isempty(psiPrior);
         end
     end
 
-    function negObj = objective(x)
+    function [negObj, mdlCandidate] = objective(x)
+        % The candidate prior is returned as well so the sampler can draw
+        % (Coeff, Sigma) from it without rebuilding what was just built.
         [lambdaArgs, candPsi] = unpackAll(x);
+        mdlCandidate = [];
         try
             mdlCandidate = svar.minnesotamniwbvarm(numseries, numlags, Y, ...
                 "Psi", candPsi, lambdaArgs{:}, fixedArgs{:}, buildArgs{:});
@@ -145,8 +175,29 @@ end
 mdl = svar.minnesotamniwbvarm(numseries, numlags, Y, ...
     "Psi", finalPsi, finalLambdaArgs{:}, fixedArgs{:}, buildArgs{:});
 
+if nvp.NumDraws > 0
+    if isempty(x0)
+        error("glp:nothingToSample", ...
+            "NumDraws requires at least one free hyperparameter.");
+    end
+    burnIn = nvp.BurnIn;
+    if isempty(burnIn)
+        burnIn = nvp.NumDraws;
+    end
+    hessian = localNumericalHessian(@objective, xHat, lb, ub);
+    chain = localMetropolis(@objective, @unpackAll, xHat, -fval, hessian, ...
+        lb, ub, nvp.NumDraws, burnIn, nvp.ProposalScale, ...
+        lamFixed, freeLambdas, lambdaNames, numseries);
+else
+    hessian = [];
+    chain   = struct([]);
+end
+
 if nargout > 1
     info = struct( ...
+        "NumDraws",        nvp.NumDraws, ...
+        "ProposalScale",   nvp.ProposalScale, ...
+        "Hessian",         hessian, ...
         "FreeLambdas",     freeLambdas, ...
         "PsiNames",        psiNames, ...
         "PsiFree",         psiFree, ...
@@ -163,6 +214,167 @@ if nargout > 1
         "FminconOutput",   fminconOutput);
 end
 
+end
+
+function chain = localMetropolis(objective, unpackAll, xHat, logPostHat, ...
+    hessian, lb, ub, numDraws, burnIn, scale, lamFixed, freeLambdas, ...
+    lambdaNames, numseries)
+%LOCALMETROPOLIS Random-walk Metropolis over the free hyperparameters.
+%   Giannone, Lenza and Primiceri (2012), appendix B. The chain starts AT the
+%   maximiser (their step 1), proposes from a Gaussian centred on the current
+%   draw with covariance scale^2 * inv(hessian), and accepts on the log
+%   posterior ratio. The proposal is symmetric, so no Hastings correction.
+%
+%   Conditional on each accepted hyperparameter draw, (Coeff, Sigma) come
+%   from the exact Normal-Inverse-Wishart posterior (their step 4) - no inner
+%   chain, so the kept draws are independent given the hyperparameters.
+
+proposalCovariance = localProposalCovariance(hessian, scale);
+
+totalDraws = burnIn + numDraws;
+x          = xHat;
+logPost    = logPostHat;
+
+% The posterior for the CURRENT hyperparameters is cached: a rejected step
+% leaves the hyperparameters unchanged, so it would rebuild the same object.
+[~, currentPrior] = objective(x);
+currentPosterior  = estimate(currentPrior, Display = "off");
+numCoefficients   = numel(currentPosterior.Mu)/numseries;
+
+coefficientDraws = zeros(numCoefficients, numseries, numDraws);
+covarianceDraws  = zeros(numseries, numseries, numDraws);
+xDraws           = zeros(numDraws, numel(xHat));
+logPostDraws     = zeros(numDraws, 1);
+accepted         = 0;
+
+for draw = 1:totalDraws
+    candidate = mvnrnd(x, proposalCovariance);
+
+    % Box constraints are enforced by rejection: fmincon searched a box, and
+    % the posterior is only defined inside it.
+    if all(candidate >= lb) && all(candidate <= ub)
+        [negObj, candidatePrior] = objective(candidate);
+        candidateLogPost = -negObj;
+
+        if log(rand) < candidateLogPost - logPost
+            x                = candidate;
+            logPost          = candidateLogPost;
+            currentPosterior = estimate(candidatePrior, Display = "off");
+            accepted         = accepted + 1;
+        end
+    end
+
+    if draw > burnIn
+        kept = draw - burnIn;
+        [coefficients, sigma] = simulate(currentPosterior, NumDraws = 1);
+
+        coefficientDraws(:,:,kept) = reshape(coefficients, [], numseries);
+        covarianceDraws(:,:,kept)  = sigma;
+        xDraws(kept,:)             = x;
+        logPostDraws(kept)         = logPost;
+    end
+end
+
+chain = struct( ...
+    "Coefficients",       coefficientDraws, ...
+    "Sigma",              covarianceDraws, ...
+    "LogPosterior",       logPostDraws, ...
+    "AcceptanceRate",     accepted/totalDraws, ...
+    "NumDraws",           numDraws, ...
+    "BurnIn",             burnIn, ...
+    "ProposalScale",      scale, ...
+    "ProposalCovariance", proposalCovariance, ...
+    "FreeLambdas",        freeLambdas, ...
+    "X",                  xDraws);
+
+% Expand the free vector back into named hyperparameters, so a consumer never
+% has to know the packing order.
+psiDraws = zeros(numDraws, numseries);
+for name = lambdaNames
+    chain.(name) = zeros(numDraws, 1);
+end
+for kept = 1:numDraws
+    [lambdaArgs, psi] = unpackAll(xDraws(kept,:));
+    lambdaValues      = localArgsToStruct(lambdaArgs, lamFixed);
+    for name = lambdaNames
+        chain.(name)(kept) = lambdaValues.(name);
+    end
+    psiDraws(kept,:) = psi;
+end
+chain.Psi = psiDraws;
+end
+
+function hessian = localNumericalHessian(objective, x, lb, ub)
+%LOCALNUMERICALHESSIAN Central-difference Hessian of the negative log posterior.
+%   Deliberately NOT fmincon's 7th output: that is a quasi-Newton
+%   approximation to the Hessian of the Lagrangian, contaminated by the
+%   barrier terms, and on this objective it comes back with a condition
+%   number around 1e12 - inverting it produces proposals hundreds of times
+%   wider than the parameters themselves and an acceptance rate of zero.
+%
+%   Step size matters more than usual because second differences divide by
+%   h^2: a step tuned for gradients is swamped by roundoff here. Around 1% of
+%   each parameter sits on the plateau where truncation and roundoff are both
+%   small; below ~0.1% the estimate diverges.
+n    = numel(x);
+step = 1e-2*abs(x);
+step(step == 0) = 1e-2;
+
+% Every evaluation point must stay inside the box the search used.
+step = min(step, 0.9*min(x - lb, ub - x));
+if any(step <= 0)
+    error("glp:degenerateHessian", ...
+        "Cannot take a finite-difference step inside the bounds; a " + ...
+        "hyperparameter sits on its bound.");
+end
+
+    function value = at(shift)
+        value = objective(x + shift);
+    end
+
+f0      = at(zeros(size(x)));
+hessian = zeros(n);
+e       = @(k) double((1:n) == k);
+
+forward  = arrayfun(@(k) at( step(k)*e(k)), 1:n);
+backward = arrayfun(@(k) at(-step(k)*e(k)), 1:n);
+
+for a = 1:n
+    hessian(a,a) = (forward(a) - 2*f0 + backward(a))/step(a)^2;
+    for b = a+1:n
+        shiftA = step(a)*e(a);
+        shiftB = step(b)*e(b);
+        cross  = at(shiftA + shiftB) - at(shiftA - shiftB) ...
+               - at(-shiftA + shiftB) + at(-shiftA - shiftB);
+        hessian(a,b) = cross/(4*step(a)*step(b));
+        hessian(b,a) = hessian(a,b);
+    end
+end
+
+hessian = (hessian + hessian')/2;
+end
+
+function proposalCovariance = localProposalCovariance(hessian, scale)
+%LOCALPROPOSALCOVARIANCE Inverse Hessian, forced symmetric positive definite.
+%   A finite-difference Hessian can still be slightly indefinite in flat
+%   directions. Reflecting the eigenvalues (as the authors' own code does)
+%   keeps the proposal usable instead of failing at the first draw.
+hessian = (hessian + hessian')/2;
+
+[vectors, values] = eig(hessian);
+values            = abs(diag(values));
+values(values < eps(max(values))) = eps(max(values));
+
+precision          = vectors*diag(values)*vectors';
+proposalCovariance = (scale^2)*(precision\eye(size(precision)));
+proposalCovariance = (proposalCovariance + proposalCovariance')/2;
+end
+
+function lambdaValues = localArgsToStruct(lambdaArgs, lamFixed)
+lambdaValues = lamFixed;
+for i = 1:2:numel(lambdaArgs)
+    lambdaValues.(lambdaArgs{i}) = lambdaArgs{i+1};
+end
 end
 
 function [x0, lb, ub, fixedValues, priors, freeNames] = localPackLambdas(nvp, names)

@@ -1,32 +1,41 @@
 # glp
 
-Tune Minnesota hyperparameters by marginal likelihood.
+Tune Minnesota hyperparameters by marginal likelihood, and optionally sample them.
 
-The `glp` function tunes free fields in a conjugate Minnesota specification and
-optionally tunes the residual variance scale. It follows the Giannone, Lenza,
-and Primiceri style of selecting hyperparameters by maximizing an analytic
-marginal likelihood, with optional embedded hyperpriors.
+The `glp` function chooses the free hyperparameters of a conjugate Minnesota
+prior by maximizing its analytic marginal likelihood, optionally combined with
+hyperpriors. It implements the approach of Giannone, Lenza, and Primiceri
+(2012), including the Metropolis step that integrates over the hyperparameters
+rather than fixing them at the maximizer.
 
 ## Syntax
 
 ```matlab
-mdl = glp(numseries,numlags,Y,Psi)
-mdl = glp(numseries,numlags,Y,Psi,Spec=spec)
+mdl = glp(numseries,numlags,Y)
+mdl = glp(numseries,numlags,Y,Name=Value)
 [mdl,info] = glp(___)
+[mdl,info,chain] = glp(___,NumDraws=m)
 ```
 
 ## Description
 
-`mdl = glp(numseries,numlags,Y,Psi)` tunes the free hyperparameters in a default
-`minnesotaSpec("mniw")` specification and returns a `minnesotamniwbvarm` model.
+`mdl = glp(numseries,numlags,Y)` tunes the free hyperparameters against `Y` and
+returns a `svar.minnesotamniwbvarm` prior built at the maximizer.
 
-`mdl = glp(numseries,numlags,Y,Psi,Spec=spec)` uses the supplied
-`minnesotamniwSpec` object. Scalar spec fields are fixed, two-element bounds are
-tuned with a flat prior, and `hyperprior` fields are tuned with their log-density
-added to the objective.
+Each hyperparameter is in one of three states, so the free/fixed split is
+implicit in what you pass and there is no separate list to keep in sync:
 
-`[mdl,info] = glp(___)` also returns optimization details, including starting
-values, bounds, selected hyperparameter names, and the final specification.
+| Value | State |
+| --- | --- |
+| scalar | Fixed at that value |
+| `[lower upper]` | Free, tuned within those bounds under a flat prior |
+| `hyperprior` | Free, tuned within its `Bounds` under its log density |
+
+`[mdl,info] = glp(___)` also returns a structure describing the search.
+
+`[mdl,info,chain] = glp(___,NumDraws=m)` additionally samples the hyperparameter
+posterior and returns `m` draws of the hyperparameters together with the VAR
+coefficients and innovations covariance they imply.
 
 ## Input Arguments
 
@@ -37,107 +46,171 @@ values, bounds, selected hyperparameter names, and the final specification.
 : Positive integer.
 
 `Y` - Response data
-: Numeric matrix or table. The number of columns must equal `numseries`.
-
-`Psi` - Residual variance specification
-: One of these values:
-
-* `1`-by-`numseries` positive numeric vector for fixed residual variances.
-* `2`-by-`numseries` numeric matrix of lower and upper bounds.
-* Scalar `hyperprior`, broadcast independently across series.
-* `1`-by-`numseries` `hyperprior` array.
+: Numeric matrix, table, or timetable with `numseries` columns.
 
 ## Name-Value Arguments
 
-`Spec` - Minnesota specification
-: `minnesotaSpec("mniw")` (default) | `minnesotamniwSpec`.
+`lambda1` - Overall Minnesota tightness
+: `0.2` (default) | scalar | `[lower upper]` | `hyperprior`. The paper's
+  $$\lambda$$.
+
+`lambda3` - Lag-decay exponent
+: `1` (default) | scalar | `[lower upper]` | `hyperprior`. Lag variance decays
+  as $$1/l^{2\lambda_3}$$, so `lambda3` is half the paper's $$\alpha$$.
+
+`lambda4` - Sum-of-coefficients tightness
+: `Inf` (default, prior off) | scalar | `[lower upper]` | `hyperprior`. The
+  paper's $$\mu$$.
+
+`lambda5` - Dummy-initial-observation tightness
+: `Inf` (default, prior off) | scalar | `[lower upper]` | `hyperprior`. The
+  paper's $$\delta$$.
+
+`Vc` - Prior variance of the constant and trend
+: `1e4` (default) | positive scalar. Always fixed.
+
+`PriorMean` - Minnesota prior mean on the own first lag
+: `1` (default) | `1`-by-`numseries` vector. Always fixed. Use `0` for series
+  entering in first differences.
+
+`Psi` - Residual variance scale
+: `"exact"` (default) | `"conditional"` | numeric | `hyperprior`. One of:
+
+* `"exact"` or `"conditional"` - estimated from `Y` once, then held fixed. The
+  string form is resolved before the search, never per candidate.
+* `1`-by-`numseries` numeric - fixed at these variances.
+* `2`-by-`numseries` numeric - free within these `[lower; upper]` bounds.
+* scalar `hyperprior` - free, broadcast independently to all series.
+* `1`-by-`numseries` `hyperprior` array - free, one log density per series.
 
 `OptimOptions` - Optimization options
-: `optimoptions("fmincon",...)` object. Use this argument to control
-  optimizer display, tolerances, and finite-difference settings.
+: `optimoptions("fmincon",...)` object controlling display, tolerances, and
+  finite-difference settings.
 
-`IncludeConstant` - Flag for including model constant
-: Passed to the built `minnesotamniwbvarm` model.
+`NumDraws` - Hyperparameter draws to keep
+: `0` (default) | nonnegative integer. `0` maximizes only. Any positive value
+  runs the Metropolis sampler and populates `chain`.
 
-`IncludeTrend` - Flag for including linear time trend
-: Passed to the built model.
+`BurnIn` - Draws discarded before keeping any
+: `NumDraws` (default) | nonnegative integer.
 
-`NumPredictors` - Number of exogenous predictors
-: Passed to the built model.
+`ProposalScale` - Random-walk step size
+: `1` (default) | positive scalar. The proposal covariance is
+  `ProposalScale^2` times the inverse Hessian at the maximizer. Tune for an
+  acceptance rate of roughly 0.2 to 0.3; $$2.38/\sqrt{d}$$ for `d` free
+  hyperparameters is a good starting point.
 
-`SeriesNames` - Response series names
-: Passed to the built model. If `Y` is a table and `SeriesNames` is omitted,
-  variable names from `Y` are used.
-
-`Description` - Model description
-: Passed to the built model.
+`IncludeConstant`, `IncludeTrend`, `NumPredictors`, `SeriesNames`, `Description`
+: Passed to the built `svar.minnesotamniwbvarm` model. If `Y` is tabular and
+  `SeriesNames` is omitted, its variable names are used.
 
 ## Output Arguments
 
 `mdl` - Tuned Minnesota prior
-: `minnesotamniwbvarm` object built from the final specification and final
-  residual variances.
+: `svar.minnesotamniwbvarm` object built at the maximizer.
 
-`info` - Optimization information
-: Structure with fields such as `LambdaNames`, `PsiNames`, `InitialSpec`,
-  `FinalSpec`, `InitialPsi`, `FinalPsi`, `X0`, `LowerBound`, `UpperBound`,
-  `XHat`, `Objective`, `ExitFlag`, and `FminconOutput`.
+`info` - Search information
+: Structure with fields `FreeLambdas`, `PsiNames`, `PsiFree`, `FinalLambdas`,
+  `InitialPsi`, `FinalPsi`, `UsedHyperprior`, `X0`, `LowerBound`, `UpperBound`,
+  `XHat`, `Objective`, `ExitFlag`, `FminconOutput`, `NumDraws`,
+  `ProposalScale`, and `Hessian`.
+
+`chain` - Hyperparameter posterior draws
+: Empty structure when `NumDraws` is `0`. Otherwise a structure with fields:
+
+| Field | Size | Contents |
+| --- | --- | --- |
+| `lambda1`, `lambda3`, `lambda4`, `lambda5` | `NumDraws`-by-`1` | Hyperparameter draws; fixed ones are constant |
+| `Psi` | `NumDraws`-by-`numseries` | Residual variance draws |
+| `Coefficients` | `m`-by-`numseries`-by-`NumDraws` | VAR coefficient draws |
+| `Sigma` | `numseries`-by-`numseries`-by-`NumDraws` | Innovations covariance draws |
+| `LogPosterior` | `NumDraws`-by-`1` | Log posterior at each draw |
+| `AcceptanceRate` | scalar | Fraction of proposals accepted |
+| `ProposalCovariance` | `d`-by-`d` | Covariance actually used |
 
 ## Examples
 
 ### Tune Minnesota Hyperparameters
 
-Create a specification with embedded hyperpriors and tune both the Minnesota
-hyperparameters and residual variances.
-
 ```matlab
-spec = minnesotaSpec("mniw", ...
-    lambda1=hyperprior("Gamma",0.2,0.4,Bounds=[1e-4 5]), ...
-    lambda4=hyperprior("Gamma",1,1,Bounds=[1e-4 50]), ...
-    lambda5=hyperprior("Gamma",1,1,Bounds=[1e-4 50]));
-
 psi0 = estimateResidualVariances(Y,1,Method="conditional");
 Psi = arrayfun(@(x) hyperprior("InverseGamma",0.02^2,0.02^2, ...
-    X0=x, Bounds=[1/100 100]*x), psi0);
+    Parameterization="native", X0=x, Bounds=[x/100 x*100]), psi0);
 
-[PriorMdl,info] = glp(size(Y,2),4,Y,Psi,Spec=spec);
+[PriorMdl,info] = glp(size(Y,2),5,Y, ...
+    lambda1=hyperprior("Gamma",0.2,0.4,Bounds=[1e-4 5]), ...
+    lambda4=hyperprior("Gamma",1,1,Bounds=[1e-4 50]), ...
+    lambda5=hyperprior("Gamma",1,1,Bounds=[1e-4 50]), ...
+    Vc=10e6, Psi=Psi);
+```
+
+### Integrate Over the Hyperparameters
+
+Bands built from `chain` account for uncertainty about the hyperparameters;
+bands built from `PriorMdl` alone condition on a single value of them.
+
+```matlab
+[PriorMdl,info,chain] = glp(size(Y,2),5,Y, ...
+    lambda1=hyperprior("Gamma",0.2,0.4,Bounds=[1e-4 5]), ...
+    Psi=Psi, NumDraws=10000, BurnIn=10000, ProposalScale=0.8);
+
+fprintf("acceptance rate %.3f\n",chain.AcceptanceRate);
+histogram(chain.lambda1);
 ```
 
 ### Tune Within Fixed Bounds
 
-Use numeric bounds for a flat-prior search over selected fields.
+Numeric bounds give a flat-prior search over the specified box.
 
 ```matlab
-spec = minnesotaSpec("mniw",lambda1=[0.01 1],lambda3=1, ...
-    lambda4=[1 50],lambda5=Inf);
-
-psi0 = estimateResidualVariances(Y,4,Method="conditional");
-PriorMdl = glp(size(Y,2),4,Y,psi0,Spec=spec);
+psi0 = estimateResidualVariances(Y,5,Method="conditional");
+PriorMdl = glp(size(Y,2),5,Y,lambda1=[0.01 1],lambda3=1, ...
+    lambda4=[1 50],lambda5=Inf,Psi=psi0);
 ```
 
 ## More About
 
 ### Objective Function
 
-For free parameters $$\theta$$ and residual variances $$\psi$$, `glp` minimizes
-the negative of the marginal-likelihood objective
+For free hyperparameters $$\theta$$ and residual variances $$\psi$$, `glp`
+minimizes the negative of
 
 $$
 \log p(Y \mid \theta,\psi) + \log p(\theta) + \log p(\psi).
 $$
 
-The hyperprior terms are included only for fields represented by `hyperprior`
-objects. Numeric bounds contribute no density term and therefore behave as flat
-priors inside the specified box.
+Hyperprior terms enter only for fields represented by `hyperprior` objects.
+Numeric bounds contribute no density term and so act as flat priors inside the
+specified box.
 
-### Supported Specification Family
+### Sampling the Hyperparameters
 
-`glp` requires `minnesotaSpec("mniw")`. The analytic marginal likelihood is
-available for the conjugate MNIW Minnesota prior, but not for the independent
+With `NumDraws`, `glp` runs the Metropolis algorithm of the paper's appendix B.
+The chain starts at the maximizer, proposes from a Gaussian centered on the
+current draw whose covariance is the scaled inverse Hessian, and accepts on the
+log posterior ratio. The proposal is symmetric, so no Hastings correction
+applies, and candidates outside the search box are rejected rather than clipped.
+
+The Hessian is computed by central differences on the objective itself, not
+taken from `fmincon`. The optimizer's quasi-Newton approximation is an estimate
+of the Hessian of the Lagrangian, contaminated by barrier terms, and is
+generally too ill-conditioned to invert into a usable proposal covariance.
+
+Because the search runs in natural, box-constrained coordinates, no Jacobian
+correction is needed - unlike implementations that maximize in a transformed
+unconstrained space and must map the Hessian back.
+
+Conditional on each hyperparameter draw, the VAR coefficients and innovations
+covariance are drawn from their exact Normal-Inverse-Wishart posterior, so the
+kept draws are independent given the hyperparameters.
+
+### Supported Prior Family
+
+`glp` builds `svar.minnesotamniwbvarm`. The analytic marginal likelihood exists
+for the conjugate MNIW Minnesota prior, but not for the independent
 Normal-Wishart or fixed-Sigma Normal variants.
 
 ## See Also
 
-`minnesotaSpec`, `minnesotamniwbvarm`, `hyperprior`, `estimateResidualVariances`,
-`fmincon`
-
+`svar.minnesotamniwbvarm`, `hyperprior`, `logMarginalLikelihood`,
+`estimateResidualVariances`, `fmincon`

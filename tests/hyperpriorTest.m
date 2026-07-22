@@ -49,5 +49,52 @@ classdef hyperpriorTest < matlab.unittest.TestCase
                 @() hyperprior("Gamma", 0.2, 0.4, Bounds=[1e-4 5], X0=10), ...
                 "hyperprior:invalidX0");
         end
+
+        function nativeParameterizationStoresParamsUnconverted(testCase)
+            % The GLP (2012) hyperprior on the residual-variance scale:
+            % Inverse-Gamma with shape = scale = 0.02^2, which has neither a
+            % mean nor a variance and so cannot be reached from (mode, sd).
+            hp = hyperprior("InverseGamma", 0.02^2, 0.02^2, ...
+                Parameterization="native", Bounds=[1e-5 1], X0=1e-3);
+
+            testCase.verifyEqual(hp.Params, [0.02^2 0.02^2], AbsTol=0);
+            testCase.verifyEqual(hp.meanOf, Inf);
+            testCase.verifyTrue(isfinite(hp.logpdf(hp.X0)));
+        end
+
+        function nativeLogpdfMatchesInverseGammaDensity(testCase)
+            a = 0.02^2;
+            hp = hyperprior("InverseGamma", a, a, Parameterization="native", ...
+                Bounds=[1e-5 1], X0=1e-3);
+            x = [1e-4 1e-3 1e-2];
+
+            expected = a*log(a) - gammaln(a) - (a + 1)*log(x) - a./x;
+            testCase.verifyEqual(hp.logpdf(x), expected, RelTol=1e-12);
+        end
+
+        function momentParameterizationIsUnchangedByDefault(testCase)
+            % Same call with and without the explicit default must agree.
+            implicitDefault = hyperprior("Gamma", 0.2, 0.4, Bounds=[1e-4 5]);
+            explicitDefault = hyperprior("Gamma", 0.2, 0.4, Bounds=[1e-4 5], ...
+                Parameterization="moments");
+
+            testCase.verifyEqual(explicitDefault.Params, ...
+                implicitDefault.Params, AbsTol=0);
+        end
+
+        function diffuseNativePriorRejectsDefaultBounds(testCase)
+            % The quantile box is unusable here, and must be reported rather
+            % than silently stored - GAMINV does not converge that far out.
+            testCase.verifyError( ...
+                @() hyperprior("InverseGamma", 0.02^2, 0.02^2, ...
+                    Parameterization="native"), ...
+                "hyperprior:unusableDefaultBounds");
+        end
+
+        function unknownParameterizationIsRejected(testCase)
+            testCase.verifyError( ...
+                @() hyperprior("Gamma", 0.2, 0.4, Parameterization="native2"), ...
+                "MATLAB:validators:mustBeMember");
+        end
     end
 end
