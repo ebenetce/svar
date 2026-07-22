@@ -1,25 +1,25 @@
-# estimateResidualVariances
+# svar.estimateResidualVariances
 
 Estimate per-series residual variances from univariate autoregressions.
 
-`estimateResidualVariances` fits an independent AR model to each response
+`svar.estimateResidualVariances` fits an independent AR model to each response
 series and returns the innovation variance estimates used as the residual
 variance scale for Minnesota-prior workflows.
 
 ## Syntax
 
 ```matlab
-psi = estimateResidualVariances(Y,numLags)
-psi = estimateResidualVariances(Y,numLags,Method=method)
+psi = svar.estimateResidualVariances(Y,numLags)
+psi = svar.estimateResidualVariances(Y,numLags,Method=method)
 ```
 
 ## Description
 
-`psi = estimateResidualVariances(Y,numLags)` fits an AR(`numLags`) model to
-each column of `Y` using exact Gaussian maximum likelihood and returns a
+`psi = svar.estimateResidualVariances(Y,numLags)` fits an AR(`numLags`) model
+to each column of `Y` using exact Gaussian maximum likelihood and returns a
 1-by-`NumSeries` row vector of residual variance estimates.
 
-`psi = estimateResidualVariances(Y,numLags,Method=method)` chooses the
+`psi = svar.estimateResidualVariances(Y,numLags,Method=method)` chooses the
 estimation method. Use `Method="conditional"` for conditional maximum
 likelihood based on the observed lagged sample.
 
@@ -52,15 +52,14 @@ likelihood based on the observed lagged sample.
 
 ```matlab
 numLags = 4;
-psi = estimateResidualVariances(Y,numLags);
-PriorMdl = minnesotamniwbvarm(size(Y,2),numLags, ...
-    ResidualVariances=psi);
+psi = svar.estimateResidualVariances(Y,numLags);
+PriorMdl = minnesotabvarm(size(Y,2),numLags,Y,Psi=psi);
 ```
 
 ### Use the Conditional Estimator
 
 ```matlab
-psi = estimateResidualVariances(Y,4,Method="conditional");
+psi = svar.estimateResidualVariances(Y,4,Method="conditional");
 ```
 
 Use the conditional method when you want a direct noniterative estimate and do
@@ -73,8 +72,8 @@ likelihood.
 
 The residual variance vector is prior scale information, not a hyperparameter
 candidate. Compute it once for a given data set and lag order, then reuse it
-while varying `minnesotaSpec` or `minnesotamniwbvarm` hyperparameters.
+while varying `minnesotabvarm` or `svar.minnesotamniwbvarm` hyperparameters.
 
 ## See Also
 
-`minnesotamniwbvarm`, `minnesotaSpec`, `arima`, `varm`, `estimate`
+`minnesotabvarm`, `svar.minnesotamniwbvarm`, `arima`, `varm`, `estimate`

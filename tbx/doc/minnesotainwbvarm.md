@@ -1,8 +1,8 @@
-# minnesotainwbvarm
+# svar.minnesotainwbvarm
 
 Independent Normal-Wishart Minnesota prior for Bayesian VAR models.
 
-The `minnesotainwbvarm` model object specifies a Minnesota prior using the
+The `svar.minnesotainwbvarm` model object specifies a Minnesota prior using the
 `semiconjugatebvarm` parameterization. It supports a free cross-variable
 tightness hyperparameter, $$\lambda_2$$, at the cost of losing the analytic
 marginal likelihood available in the conjugate MNIW variant.
@@ -12,18 +12,19 @@ marginal likelihood available in the conjugate MNIW variant.
 ### Syntax
 
 ```matlab
-PriorMdl = minnesotainwbvarm(numseries,numlags,ResidualVariances=psi)
-PriorMdl = minnesotainwbvarm(numseries,numlags,ResidualVariances=psi,Name=Value)
+PriorMdl = svar.minnesotainwbvarm(numseries,numlags,Y)
+PriorMdl = svar.minnesotainwbvarm(numseries,numlags,Y,Name=Value)
 ```
 
 ### Description
 
-`PriorMdl = minnesotainwbvarm(numseries,numlags,ResidualVariances=psi)` creates
-an independent Normal-Wishart Minnesota prior for a VAR model with `numseries`
-response variables and `numlags` autoregressive lags.
+`PriorMdl = svar.minnesotainwbvarm(numseries,numlags,Y)` creates an independent
+Normal-Wishart Minnesota prior for a VAR model with `numseries` response
+variables and `numlags` autoregressive lags.
 
-`PriorMdl = minnesotainwbvarm(___,Name=Value)` sets Minnesota hyperparameters
-and inherited `semiconjugatebvarm` model options.
+`PriorMdl = svar.minnesotainwbvarm(___,Name=Value)` sets residual-variance
+handling, Minnesota hyperparameters, and inherited `semiconjugatebvarm` model
+options.
 
 ## Input Arguments
 
@@ -33,10 +34,17 @@ and inherited `semiconjugatebvarm` model options.
 `numlags` - Number of autoregressive lags
 : Positive integer.
 
+`Y` - Response data
+: Nonempty response sample.
+
 ## Name-Value Arguments
 
-`ResidualVariances` - Per-series residual variances
-: Positive numeric vector with `numseries` elements. This argument is required.
+`Psi` - Residual-variance scale
+: `"exact"` (default) | `"conditional"` | positive numeric vector.
+
+  String values select the estimator used by
+  `svar.estimateResidualVariances`. A numeric vector must contain one positive
+  value per response series.
 
 `lambda1` - Overall tightness
 : `0.2` (default) | positive scalar.
@@ -94,8 +102,15 @@ Inherited `semiconjugatebvarm` properties such as `NumSeries`, `P`, `Mu`, `V`,
 ## Object Functions
 
 `estimate`
-: Estimate the semiconjugate posterior using inherited Gibbs sampling. The
-  returned model is an empirical posterior object from Econometrics Toolbox.
+: Estimate the semiconjugate posterior for the stored sample using inherited
+  Gibbs sampling. The returned model is an empirical posterior object from
+  Econometrics Toolbox.
+
+`simulate`
+: Draw reduced-form VAR parameters given the stored sample.
+
+`forecast`
+: Forecast responses beyond the stored sample.
 
 Inherited `semiconjugatebvarm` object functions are available where they are
 valid for the resulting prior or posterior.
@@ -105,9 +120,8 @@ valid for the resulting prior or posterior.
 ### Create an Independent Normal-Wishart Minnesota Prior
 
 ```matlab
-psi = estimateResidualVariances(Y,4,Method="conditional");
-PriorMdl = minnesotainwbvarm(size(Y,2),4, ...
-    ResidualVariances=psi,lambda2=0.4);
+psi = svar.estimateResidualVariances(Y,4,Method="conditional");
+PriorMdl = svar.minnesotainwbvarm(size(Y,2),4,Y,Psi=psi,lambda2=0.4);
 ```
 
 ### Estimate with Reproducible Simulation
@@ -117,7 +131,7 @@ generator before estimating.
 
 ```matlab
 rng default
-PosteriorMdl = estimate(PriorMdl,Y,Display="off");
+PosteriorMdl = estimate(PriorMdl,Display="off");
 ```
 
 ## More About
@@ -143,10 +157,10 @@ $$
 
 This class does not implement sum-of-coefficients or dummy-initial-observation
 priors. It also does not provide `logMarginalLikelihood`; use the conjugate
-`minnesotamniwbvarm` variant when an analytic marginal likelihood is required.
+`svar.minnesotamniwbvarm` variant when an analytic marginal likelihood is
+required.
 
 ## See Also
 
-`minnesotaSpec`, `minnesotamniwbvarm`, `minnesotanbvarm`,
-`semiconjugatebvarm`, `estimateResidualVariances`
-
+`minnesotabvarm`, `svar.minnesotamniwbvarm`, `svar.minnesotanbvarm`,
+`semiconjugatebvarm`, `svar.estimateResidualVariances`

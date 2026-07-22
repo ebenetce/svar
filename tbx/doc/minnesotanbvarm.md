@@ -1,29 +1,31 @@
-# minnesotanbvarm
+# svar.minnesotanbvarm
 
 Fixed-Sigma Normal Minnesota prior for Bayesian VAR models.
 
-The `minnesotanbvarm` model object specifies a Minnesota-shaped Normal prior
-with fixed innovations covariance $$\Sigma = \operatorname{diag}(\psi)$$. It
-uses the `normalbvarm` parameterization and supports a free cross-variable
-tightness hyperparameter, $$\lambda_2$$.
+The `svar.minnesotanbvarm` model object specifies a Minnesota-shaped Normal
+prior with fixed innovations covariance
+$$\Sigma = \operatorname{diag}(\psi)$$. It uses the `normalbvarm`
+parameterization and supports a free cross-variable tightness hyperparameter,
+$$\lambda_2$$.
 
 ## Creation
 
 ### Syntax
 
 ```matlab
-PriorMdl = minnesotanbvarm(numseries,numlags,ResidualVariances=psi)
-PriorMdl = minnesotanbvarm(numseries,numlags,ResidualVariances=psi,Name=Value)
+PriorMdl = svar.minnesotanbvarm(numseries,numlags,Y)
+PriorMdl = svar.minnesotanbvarm(numseries,numlags,Y,Name=Value)
 ```
 
 ### Description
 
-`PriorMdl = minnesotanbvarm(numseries,numlags,ResidualVariances=psi)` creates a
-fixed-Sigma Normal Minnesota prior for a VAR model with `numseries` response
-variables and `numlags` autoregressive lags.
+`PriorMdl = svar.minnesotanbvarm(numseries,numlags,Y)` creates a fixed-Sigma
+Normal Minnesota prior for a VAR model with `numseries` response variables and
+`numlags` autoregressive lags.
 
-`PriorMdl = minnesotanbvarm(___,Name=Value)` sets Minnesota hyperparameters and
-inherited `normalbvarm` model options.
+`PriorMdl = svar.minnesotanbvarm(___,Name=Value)` sets residual-variance
+handling, Minnesota hyperparameters, and inherited `normalbvarm` model
+options.
 
 ## Input Arguments
 
@@ -33,10 +35,17 @@ inherited `normalbvarm` model options.
 `numlags` - Number of autoregressive lags
 : Positive integer.
 
+`Y` - Response data
+: Nonempty response sample.
+
 ## Name-Value Arguments
 
-`ResidualVariances` - Per-series residual variances
-: Positive numeric vector with `numseries` elements. This argument is required.
+`Psi` - Residual-variance scale
+: `"exact"` (default) | `"conditional"` | positive numeric vector.
+
+  String values select the estimator used by
+  `svar.estimateResidualVariances`. A numeric vector must contain one positive
+  value per response series.
 
 `lambda1` - Overall tightness
 : `0.2` (default) | positive scalar.
@@ -93,27 +102,26 @@ Inherited `normalbvarm` properties such as `NumSeries`, `P`, `Mu`, `V`, and
 
 ## Object Functions
 
-`logMarginalLikelihood`
-: Evaluate the analytic fixed-Sigma Normal log marginal likelihood.
+`estimate`
+: Estimate the fixed-Sigma Normal posterior for the stored sample. The returned
+  posterior is a plain `normalbvarm` object.
 
-`negativeLogMarginalLikelihood`
-: Return the negative log marginal likelihood for use as an optimizer
-  objective.
+`simulate`
+: Draw reduced-form VAR parameters given the stored sample.
 
-`marginalLikelihood`
-: Return the marginal likelihood on the original scale.
+`forecast`
+: Forecast responses beyond the stored sample.
 
-Inherited `normalbvarm` object functions are also available where they are valid
-for the resulting prior or posterior.
+Inherited `normalbvarm` object functions are also available where they are
+valid for the resulting prior or posterior.
 
 ## Examples
 
 ### Create a Fixed-Sigma Minnesota Prior
 
 ```matlab
-psi = estimateResidualVariances(Y,4,Method="conditional");
-PriorMdl = minnesotanbvarm(size(Y,2),4, ...
-    ResidualVariances=psi,lambda2=0.4);
+psi = svar.estimateResidualVariances(Y,4,Method="conditional");
+PriorMdl = svar.minnesotanbvarm(size(Y,2),4,Y,Psi=psi,lambda2=0.4);
 ```
 
 ## More About
@@ -139,5 +147,5 @@ for cross lags.
 
 ## See Also
 
-`minnesotaSpec`, `minnesotanSpec`, `minnesotainwbvarm`,
-`logMarginalLikelihood`, `normalbvarm`, `estimateResidualVariances`
+`minnesotabvarm`, `svar.minnesotainwbvarm`, `logMarginalLikelihood`,
+`normalbvarm`, `svar.estimateResidualVariances`

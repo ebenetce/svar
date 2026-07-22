@@ -13,8 +13,14 @@ workflows that start from `conjugatebvarm` or `varm` models.
   Uhlig-style reduced-form workflows.
 * [uniformirbvarm](uniformirbvarm.md) - Reduced-form prior induced by uniform
   impulse-response parameters.
-* [minnesotaSpec](minnesotaSpec.md) - Public entry point for constructing and
-  tuning Minnesota priors. Use `build` to create the concrete model object.
+* [minnesotabvarm](minnesotabvarm.md) - Create a Minnesota prior by selecting
+  a supported prior family with the `Type` name-value argument.
+* [svar.minnesotamniwbvarm](minnesotamniwbvarm.md) - Conjugate
+  Matrix-Normal-Inverse-Wishart Minnesota prior.
+* [svar.minnesotainwbvarm](minnesotainwbvarm.md) - Semiconjugate independent
+  Normal-Wishart Minnesota prior.
+* [svar.minnesotanbvarm](minnesotanbvarm.md) - Normal Minnesota prior with
+  fixed innovations covariance.
 * [glp](glp.md) - Tune conjugate Minnesota hyperparameters by marginal
   likelihood.
 * [logMarginalLikelihood](logMarginalLikelihood.md) - Compute analytic log
@@ -23,25 +29,19 @@ workflows that start from `conjugatebvarm` or `varm` models.
   the original scale.
 * [hyperprior](hyperprior.md) - Scalar hyperprior for Minnesota-prior tuning.
 
-Minnesota implementation reference: `minnesotaSpec` returns
-[minnesotamniwSpec](minnesotamniwSpec.md),
-[minnesotainwSpec](minnesotainwSpec.md), or
-[minnesotanSpec](minnesotanSpec.md). Their `build` methods return
-[minnesotamniwbvarm](minnesotamniwbvarm.md),
-[minnesotainwbvarm](minnesotainwbvarm.md), or
-[minnesotanbvarm](minnesotanbvarm.md). The shared base classes
-[minnesotaBaseSpec](minnesotaBaseSpec.md) and
-[minnesotabvarm](minnesotabvarm.md) are documented for maintenance reference.
+`minnesotabvarm` is the recommended front door. It dispatches to
+`svar.minnesotamniwbvarm`, `svar.minnesotainwbvarm`, or
+`svar.minnesotanbvarm`.
 
 ## Reduced-Form Utilities
 
-* [estimateResidualVariances](estimateResidualVariances.md) - Estimate the
-  residual variance scale used by Minnesota priors.
-* [varmFromCoefficients](varmFromCoefficients.md) - Reconstruct a `varm` model
-  from a Bayesian VAR coefficient draw.
+* [svar.estimateResidualVariances](estimateResidualVariances.md) - Estimate
+  the residual variance scale used by Minnesota priors.
+* [svar.varmFromCoefficients](varmFromCoefficients.md) - Reconstruct a `varm`
+  model from a Bayesian VAR coefficient draw.
 * [bvar2var](bvar2var.md) - Convert a Bayesian VAR model to a `varm` model.
-* [logDetPD](logDetPD.md) - Compute the log determinant of a positive-definite
-  matrix using a Cholesky factorization.
+* [svar.logDetPD](logDetPD.md) - Compute the log determinant of a
+  positive-definite matrix using a Cholesky factorization.
 
 ## Structural VAR Package Functions
 
@@ -49,6 +49,8 @@ Minnesota implementation reference: `minnesotaSpec` returns
   model and impact matrix.
 * [svar.fevd](svar.fevd.md) - Compute forecast error variance decompositions
   from structural impulse responses.
+* [historicalDecomposition](historicalDecomposition.md) - Decompose a realized
+  history into structural shock contributions.
 * [svar.companionMatrix](svar.companionMatrix.md) - Build the VAR companion
   matrix.
 * [svar.companionPower](svar.companionPower.md) - Compute moving-average blocks

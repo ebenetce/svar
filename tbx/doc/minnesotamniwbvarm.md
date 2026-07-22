@@ -1,30 +1,31 @@
-# minnesotamniwbvarm
+# svar.minnesotamniwbvarm
 
-Conjugate Matrix-Normal-Inverse-Wishart Minnesota prior for Bayesian VAR models.
+Conjugate Matrix-Normal-Inverse-Wishart Minnesota prior for Bayesian VAR
+models.
 
-The `minnesotamniwbvarm` model object specifies a Litterman-style Minnesota
-prior in the `conjugatebvarm` parameterization. The constructor is data-free:
-it requires precomputed per-series residual variances and stores only the prior
-hyperparameters and reduced-form model layout.
+The `svar.minnesotamniwbvarm` model object specifies a Litterman-style
+Minnesota prior in the `conjugatebvarm` parameterization. The constructor uses
+the response sample to resolve residual variances and any active dummy priors.
 
 ## Creation
 
 ### Syntax
 
 ```matlab
-PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi)
-PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi,Name=Value)
+PriorMdl = svar.minnesotamniwbvarm(numseries,numlags,Y)
+PriorMdl = svar.minnesotamniwbvarm(numseries,numlags,Y,Name=Value)
 ```
 
 ### Description
 
-`PriorMdl = minnesotamniwbvarm(numseries,numlags,ResidualVariances=psi)` creates
-a conjugate Minnesota prior for a VAR model with `numseries` response variables
-and `numlags` autoregressive lags. `psi` is a row vector of residual variance
-estimates, one per response series.
+`PriorMdl = svar.minnesotamniwbvarm(numseries,numlags,Y)` creates a conjugate
+Minnesota prior for a VAR model with `numseries` response variables and
+`numlags` autoregressive lags. The object stores the sample and the full
+dummy-augmented prior.
 
-`PriorMdl = minnesotamniwbvarm(___,Name=Value)` sets Minnesota hyperparameters
-and inherited `conjugatebvarm` model options.
+`PriorMdl = svar.minnesotamniwbvarm(___,Name=Value)` sets residual-variance
+handling, Minnesota hyperparameters, and inherited `conjugatebvarm` model
+options.
 
 ## Input Arguments
 
@@ -34,10 +35,17 @@ and inherited `conjugatebvarm` model options.
 `numlags` - Number of autoregressive lags
 : Positive integer.
 
+`Y` - Response data
+: Nonempty response sample.
+
 ## Name-Value Arguments
 
-`ResidualVariances` - Per-series residual variances
-: Positive numeric vector with `numseries` elements. This argument is required.
+`Psi` - Residual-variance scale
+: `"exact"` (default) | `"conditional"` | positive numeric vector.
+
+  String values select the estimator used by
+  `svar.estimateResidualVariances`. A numeric vector must contain one positive
+  value per response series.
 
 `lambda1` - Overall tightness
 : `0.2` (default) | positive scalar.
@@ -98,34 +106,26 @@ and inherited `conjugatebvarm` model options.
 `PriorMean` - Own first-lag prior mean
 : Row vector with one value per response series.
 
+`NumDummyObservations` - Number of active dummy observations
+: Nonnegative integer.
+
 Inherited `conjugatebvarm` properties such as `NumSeries`, `P`, `SeriesNames`,
 `Mu`, `V`, `Omega`, and `DoF` are also available.
 
 ## Object Functions
 
 `estimate`
-: Estimate the dummy-augmented conjugate posterior. The returned posterior is a
-  plain `conjugatebvarm` object.
-
-`logMarginalLikelihood`
-: Evaluate the analytic log marginal likelihood for the hyperparameters.
-
-`negativeLogMarginalLikelihood`
-: Return the negative log marginal likelihood for use as an optimizer
-  objective.
-
-`marginalLikelihood`
-: Return the marginal likelihood on the original scale.
+: Estimate the dummy-augmented conjugate posterior for the stored sample. The
+  returned posterior is a plain `conjugatebvarm` object.
 
 `simulate`
-: Draw reduced-form VAR parameters from the posterior implied by data and the
-  dummy-augmented prior.
+: Draw reduced-form VAR parameters given the stored sample.
 
 `forecast`
-: Forecast from the posterior implied by data and the dummy-augmented prior.
+: Forecast responses beyond the stored sample.
 
 `simsmooth`
-: Run the inherited simulation smoother using the dummy-augmented prior.
+: Run the inherited simulation smoother using the stored sample.
 
 ## Examples
 
@@ -133,22 +133,21 @@ Inherited `conjugatebvarm` properties such as `NumSeries`, `P`, `SeriesNames`,
 
 ```matlab
 numLags = 4;
-psi = estimateResidualVariances(Y,numLags,Method="conditional");
-PriorMdl = minnesotamniwbvarm(size(Y,2),numLags, ...
-    ResidualVariances=psi);
+psi = svar.estimateResidualVariances(Y,numLags,Method="conditional");
+PriorMdl = svar.minnesotamniwbvarm(size(Y,2),numLags,Y,Psi=psi);
 ```
 
 ### Enable Dummy Priors
 
 ```matlab
-PriorMdl = minnesotamniwbvarm(size(Y,2),4,ResidualVariances=psi, ...
+PriorMdl = svar.minnesotamniwbvarm(size(Y,2),4,Y,Psi=psi, ...
     lambda4=10,lambda5=5);
 ```
 
-### Evaluate a Hyperparameter Objective
+### Estimate the Posterior
 
 ```matlab
-obj = PriorMdl.negativeLogMarginalLikelihood(Y);
+PosteriorMdl = estimate(PriorMdl);
 ```
 
 ## More About
@@ -169,12 +168,11 @@ tradeoff that makes the analytic marginal likelihood available.
 ### Dummy Priors
 
 The sum-of-coefficients and dummy-initial-observation priors depend on the
-data. `minnesotamniwbvarm` applies them inside `estimate`, `simulate`,
-`forecast`, and the marginal-likelihood methods. Setting `lambda4=Inf` or
-`lambda5=Inf` disables the corresponding dummy rows.
+data. `svar.minnesotamniwbvarm` folds active dummy priors into the prior at
+construction time. Setting `lambda4=Inf` or `lambda5=Inf` disables the
+corresponding dummy rows.
 
 ## See Also
 
-`minnesotaSpec`, `minnesotamniwSpec`, `minnesotainwbvarm`, `minnesotanbvarm`,
-`estimateResidualVariances`, `conjugatebvarm`, `glp`
-
+`minnesotabvarm`, `svar.minnesotainwbvarm`, `svar.minnesotanbvarm`,
+`svar.estimateResidualVariances`, `conjugatebvarm`, `glp`

@@ -1,21 +1,21 @@
-# logDetPD
+# svar.logDetPD
 
 Log-determinant of a symmetric positive-definite matrix.
 
-`logDetPD` computes the log determinant of a positive-definite matrix using a
-Cholesky factorization.
+`svar.logDetPD` computes the log determinant of a positive-definite matrix
+using a Cholesky factorization.
 
 ## Syntax
 
 ```matlab
-value = logDetPD(A)
+value = svar.logDetPD(A)
 ```
 
 ## Description
 
-`value = logDetPD(A)` returns `log(det(A))` for a symmetric positive-definite
-matrix `A`. The function symmetrizes `A` by averaging it with its transpose
-before factorization.
+`value = svar.logDetPD(A)` returns `log(det(A))` for a symmetric
+positive-definite matrix `A`. The function symmetrizes `A` by averaging it with
+its transpose before factorization.
 
 ## Input Arguments
 
@@ -33,7 +33,7 @@ before factorization.
 
 ```matlab
 A = [2 0.5; 0.5 1];
-value = logDetPD(A);
+value = svar.logDetPD(A);
 ```
 
 ## More About

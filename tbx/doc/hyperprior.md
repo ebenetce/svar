@@ -4,7 +4,7 @@ Scalar hyperprior for Minnesota-prior hyperparameter tuning.
 
 The `hyperprior` class stores one probability distribution for one scalar
 hyperparameter. It provides optimizer bounds, an initial value, and a stable
-log-density used by `glp` and `minnesotaSpec` tuning workflows.
+log-density used by `glp`.
 
 ## Creation
 
@@ -25,9 +25,9 @@ the native distribution parameters once at construction time.
 `hp = hyperprior(distribution,mode,sd,Bounds=bounds)` sets the optimizer box.
 If `Bounds` is omitted, quantile bounds are computed from the distribution.
 
-`hp = hyperprior(distribution,mode,sd,X0=x0)` sets the optimizer starting value.
-If `X0` is omitted, the distribution mode is used when valid; otherwise the
-median is used.
+`hp = hyperprior(distribution,mode,sd,X0=x0)` sets the optimizer starting
+value. If `X0` is omitted, the distribution mode is used when valid; otherwise
+the median is used.
 
 ## Input Arguments
 
@@ -87,17 +87,17 @@ median is used.
 
 ```matlab
 hp = hyperprior("Gamma",0.2,0.4,Bounds=[1e-4 5]);
-spec = minnesotaSpec("mniw",lambda1=hp);
+PriorMdl = glp(size(Y,2),4,Y,lambda1=hp);
 ```
 
 ### Use Inverse-Gamma Priors for Residual Variances
 
 ```matlab
-psi0 = estimateResidualVariances(Y,1,Method="conditional");
+psi0 = svar.estimateResidualVariances(Y,1,Method="conditional");
 Psi = arrayfun(@(x) hyperprior("InverseGamma",0.02^2,0.02^2, ...
-    X0=x, Bounds=[1/100 100]*x), psi0);
+    X0=x,Bounds=[1/100 100]*x), psi0);
 
-PriorMdl = glp(size(Y,2),4,Y,Psi,Spec=spec);
+PriorMdl = glp(size(Y,2),4,Y,Psi=Psi);
 ```
 
 ### Evaluate a Log Density
@@ -125,11 +125,10 @@ The resulting object does not repeat that solve during optimization.
 
 ### Role in Tuning
 
-Assigning a `hyperprior` to a Minnesota spec field makes that field free. The
-field's `Bounds` and `X0` participate in the optimizer vector, and `logpdf`
-contributes a log-prior term to the objective used by `glp`.
+Assigning a `hyperprior` to a `glp` name-value argument makes that field free.
+The field's `Bounds` and `X0` participate in the optimizer vector, and
+`logpdf` contributes a log-prior term to the objective.
 
 ## See Also
 
-`glp`, `minnesotaSpec`, `minnesotamniwSpec`
-
+`glp`, `svar.minnesotamniwbvarm`, `logMarginalLikelihood`

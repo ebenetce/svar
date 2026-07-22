@@ -6,7 +6,10 @@
 
 * [Uhlig prior](weakbvarm.md)
 * [Uniform IR prior](uniformirbvarm.md)
-* [Minnesota prior specification](minnesotaSpec.md)
+* [Minnesota prior](minnesotabvarm.md)
+* [Conjugate Minnesota prior](minnesotamniwbvarm.md)
+* [Semiconjugate Minnesota prior](minnesotainwbvarm.md)
+* [Normal Minnesota prior](minnesotanbvarm.md)
 * [GLP hyperparameter tuning](glp.md)
 * [Log marginal likelihood](logMarginalLikelihood.md)
 * [Marginal likelihood](marginalLikelihood.md)
@@ -16,6 +19,7 @@
 
 * [Impulse responses](svar.irf.md)
 * [Forecast error variance decomposition](svar.fevd.md)
+* [Historical decomposition](historicalDecomposition.md)
 
 ## Utils
 

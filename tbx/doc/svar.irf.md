@@ -71,4 +71,5 @@ responses2 = svar.irf(EstMdl,impact2,horizon,Phi=Phi);
 
 ## See Also
 
-`svar.companionPower`, `svar.companionMatrix`, `varm`, `varmFromCoefficients`
+`svar.companionPower`, `svar.companionMatrix`, `varm`,
+`svar.varmFromCoefficients`

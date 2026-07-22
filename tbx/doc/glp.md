@@ -1,32 +1,32 @@
 # glp
 
-Tune Minnesota hyperparameters by marginal likelihood.
+Tune conjugate Minnesota hyperparameters by marginal likelihood.
 
-The `glp` function tunes free fields in a conjugate Minnesota specification and
-optionally tunes the residual variance scale. It follows the Giannone, Lenza,
-and Primiceri style of selecting hyperparameters by maximizing an analytic
-marginal likelihood, with optional embedded hyperpriors.
+The `glp` function tunes free hyperparameters of
+`svar.minnesotamniwbvarm` by maximizing the analytic marginal likelihood for
+the response sample. It supports flat bounded searches and embedded
+`hyperprior` objects.
 
 ## Syntax
 
 ```matlab
-mdl = glp(numseries,numlags,Y,Psi)
-mdl = glp(numseries,numlags,Y,Psi,Spec=spec)
-[mdl,info] = glp(___)
+PriorMdl = glp(numseries,numlags,Y)
+PriorMdl = glp(numseries,numlags,Y,Name=Value)
+[PriorMdl,info] = glp(___)
 ```
 
 ## Description
 
-`mdl = glp(numseries,numlags,Y,Psi)` tunes the free hyperparameters in a default
-`minnesotaSpec("mniw")` specification and returns a `minnesotamniwbvarm` model.
+`PriorMdl = glp(numseries,numlags,Y)` tunes the default free parameter set for
+a conjugate Minnesota prior and returns a `svar.minnesotamniwbvarm` object
+built at the optimizer solution.
 
-`mdl = glp(numseries,numlags,Y,Psi,Spec=spec)` uses the supplied
-`minnesotamniwSpec` object. Scalar spec fields are fixed, two-element bounds are
-tuned with a flat prior, and `hyperprior` fields are tuned with their log-density
-added to the objective.
+`PriorMdl = glp(numseries,numlags,Y,Name=Value)` controls fixed and free
+Minnesota hyperparameters, residual-variance handling, optimizer options, and
+inherited Bayesian VAR model options.
 
-`[mdl,info] = glp(___)` also returns optimization details, including starting
-values, bounds, selected hyperparameter names, and the final specification.
+`[PriorMdl,info] = glp(___)` also returns optimization details, including free
+parameter names, bounds, starting values, final values, and `fmincon` output.
 
 ## Input Arguments
 
@@ -37,27 +37,40 @@ values, bounds, selected hyperparameter names, and the final specification.
 : Positive integer.
 
 `Y` - Response data
-: Numeric matrix or table. The number of columns must equal `numseries`.
-
-`Psi` - Residual variance specification
-: One of these values:
-
-* `1`-by-`numseries` positive numeric vector for fixed residual variances.
-* `2`-by-`numseries` numeric matrix of lower and upper bounds.
-* Scalar `hyperprior`, broadcast independently across series.
-* `1`-by-`numseries` `hyperprior` array.
+: Numeric matrix, table, or timetable. The number of variables or columns must
+  equal `numseries`.
 
 ## Name-Value Arguments
 
-`Spec` - Minnesota specification
-: `minnesotaSpec("mniw")` (default) | `minnesotamniwSpec`.
+`lambda1`, `lambda3`, `lambda4`, `lambda5` - Minnesota hyperparameters
+: Scalar | two-element bounds | scalar `hyperprior`.
+
+  A scalar fixes the value. A two-element vector `[lower upper]` makes the
+  parameter free inside the bounds with a flat prior. A `hyperprior` makes the
+  parameter free inside `hyperprior.Bounds` and adds `hyperprior.logpdf` to the
+  objective. `lambda4=Inf` and `lambda5=Inf` disable the corresponding dummy
+  priors.
+
+`Vc` - Prior variance for deterministic terms
+: `1e4` (default) | positive scalar.
+
+`PriorMean` - Own first-lag prior mean
+: `1` (default) | numeric row vector.
+
+`Psi` - Residual-variance scale
+: `"exact"` (default) | `"conditional"` | positive numeric vector |
+  `2`-by-`numseries` positive bounds | scalar or row vector of `hyperprior`
+  objects.
+
+  String values call `svar.estimateResidualVariances` once before the search.
+  Numeric vectors fix `Psi`. Numeric bounds or `hyperprior` objects make `Psi`
+  free in the optimizer.
 
 `OptimOptions` - Optimization options
-: `optimoptions("fmincon",...)` object. Use this argument to control
-  optimizer display, tolerances, and finite-difference settings.
+: `optimoptions("fmincon",...)` object.
 
 `IncludeConstant` - Flag for including model constant
-: Passed to the built `minnesotamniwbvarm` model.
+: Passed to the built `svar.minnesotamniwbvarm` model.
 
 `IncludeTrend` - Flag for including linear time trend
 : Passed to the built model.
@@ -66,7 +79,7 @@ values, bounds, selected hyperparameter names, and the final specification.
 : Passed to the built model.
 
 `SeriesNames` - Response series names
-: Passed to the built model. If `Y` is a table and `SeriesNames` is omitted,
+: Passed to the built model. If `Y` is tabular and `SeriesNames` is omitted,
   variable names from `Y` are used.
 
 `Description` - Model description
@@ -74,53 +87,51 @@ values, bounds, selected hyperparameter names, and the final specification.
 
 ## Output Arguments
 
-`mdl` - Tuned Minnesota prior
-: `minnesotamniwbvarm` object built from the final specification and final
+`PriorMdl` - Tuned Minnesota prior
+: `svar.minnesotamniwbvarm` object built from the final hyperparameters and
   residual variances.
 
 `info` - Optimization information
-: Structure with fields such as `LambdaNames`, `PsiNames`, `InitialSpec`,
-  `FinalSpec`, `InitialPsi`, `FinalPsi`, `X0`, `LowerBound`, `UpperBound`,
-  `XHat`, `Objective`, `ExitFlag`, and `FminconOutput`.
+: Structure with fields such as `FreeLambdas`, `PsiNames`, `PsiFree`,
+  `FinalLambdas`, `InitialPsi`, `FinalPsi`, `UsedHyperprior`, `X0`,
+  `LowerBound`, `UpperBound`, `XHat`, `Objective`, `ExitFlag`, and
+  `FminconOutput`.
 
 ## Examples
 
 ### Tune Minnesota Hyperparameters
 
-Create a specification with embedded hyperpriors and tune both the Minnesota
-hyperparameters and residual variances.
-
 ```matlab
-spec = minnesotaSpec("mniw", ...
+PriorMdl = glp(size(Y,2),4,Y, ...
     lambda1=hyperprior("Gamma",0.2,0.4,Bounds=[1e-4 5]), ...
     lambda4=hyperprior("Gamma",1,1,Bounds=[1e-4 50]), ...
-    lambda5=hyperprior("Gamma",1,1,Bounds=[1e-4 50]));
+    lambda5=hyperprior("Gamma",1,1,Bounds=[1e-4 50]), ...
+    Psi="conditional");
+```
 
-psi0 = estimateResidualVariances(Y,1,Method="conditional");
+### Tune Residual Variances with Hyperpriors
+
+```matlab
+psi0 = svar.estimateResidualVariances(Y,4,Method="conditional");
 Psi = arrayfun(@(x) hyperprior("InverseGamma",0.02^2,0.02^2, ...
-    X0=x, Bounds=[1/100 100]*x), psi0);
+    X0=x,Bounds=[1/100 100]*x), psi0);
 
-[PriorMdl,info] = glp(size(Y,2),4,Y,Psi,Spec=spec);
+[PriorMdl,info] = glp(size(Y,2),4,Y,Psi=Psi);
 ```
 
 ### Tune Within Fixed Bounds
 
-Use numeric bounds for a flat-prior search over selected fields.
-
 ```matlab
-spec = minnesotaSpec("mniw",lambda1=[0.01 1],lambda3=1, ...
-    lambda4=[1 50],lambda5=Inf);
-
-psi0 = estimateResidualVariances(Y,4,Method="conditional");
-PriorMdl = glp(size(Y,2),4,Y,psi0,Spec=spec);
+PriorMdl = glp(size(Y,2),4,Y, ...
+    lambda1=[0.01 1],lambda3=1,lambda4=[1 50],Psi="conditional");
 ```
 
 ## More About
 
 ### Objective Function
 
-For free parameters $$\theta$$ and residual variances $$\psi$$, `glp` minimizes
-the negative of the marginal-likelihood objective
+For free parameters $$\theta$$ and residual variances $$\psi$$, `glp`
+minimizes the negative of
 
 $$
 \log p(Y \mid \theta,\psi) + \log p(\theta) + \log p(\psi).
@@ -130,14 +141,13 @@ The hyperprior terms are included only for fields represented by `hyperprior`
 objects. Numeric bounds contribute no density term and therefore behave as flat
 priors inside the specified box.
 
-### Supported Specification Family
+### Supported Prior Family
 
-`glp` requires `minnesotaSpec("mniw")`. The analytic marginal likelihood is
-available for the conjugate MNIW Minnesota prior, but not for the independent
-Normal-Wishart or fixed-Sigma Normal variants.
+`glp` tunes `svar.minnesotamniwbvarm`. The analytic marginal likelihood is
+available for the conjugate Minnesota family, but not for the independent
+Normal-Wishart family.
 
 ## See Also
 
-`minnesotaSpec`, `minnesotamniwbvarm`, `hyperprior`, `estimateResidualVariances`,
-`fmincon`
-
+`svar.minnesotamniwbvarm`, `hyperprior`, `logMarginalLikelihood`,
+`svar.estimateResidualVariances`, `fmincon`
