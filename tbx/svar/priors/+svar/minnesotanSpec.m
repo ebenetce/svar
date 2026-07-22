@@ -1,4 +1,4 @@
-classdef (Hidden) minnesotanSpec < minnesotaBaseSpec
+classdef (Hidden) minnesotanSpec < svar.minnesotaBaseSpec
     %MINNESOTANSPEC Hyperparameter recipe for fixed-Sigma Normal Minnesota prior.
 
     properties

@@ -1,4 +1,4 @@
-classdef (Hidden) minnesotanbvarm < normalbvarm & minnesotabvarm & matlab.mixin.CustomDisplay
+classdef (Hidden) minnesotanbvarm < normalbvarm & svar.minnesotabvarmBase & matlab.mixin.CustomDisplay
     %MINNESOTANBVARM Fixed-Sigma Normal Minnesota prior for a Bayesian VAR.
     %
     %   MINNESOTANBVARM materialises a Minnesota-shaped Normal prior with a

@@ -31,11 +31,11 @@ method = aliasMap(method);
 
 switch method
     case "mniw"
-        spec = minnesotamniwSpec.create(specArgs{:});
+        spec = svar.minnesotamniwSpec.create(specArgs{:});
     case "inw"
-        spec = minnesotainwSpec.create(specArgs{:});
+        spec = svar.minnesotainwSpec.create(specArgs{:});
     case "normal"
-        spec = minnesotanSpec.create(specArgs{:});
+        spec = svar.minnesotanSpec.create(specArgs{:});
 end
 
 end

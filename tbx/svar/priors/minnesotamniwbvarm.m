@@ -1,4 +1,4 @@
-classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & minnesotabvarm & matlab.mixin.CustomDisplay
+classdef (Hidden) minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.mixin.CustomDisplay
     %MINNESOTAMNIWBVARM Conjugate Minnesota prior for a Bayesian VAR.
     %
     %   A thin subclass of CONJUGATEBVARM whose constructor materialises a

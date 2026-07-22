@@ -1,4 +1,4 @@
-classdef (Hidden) minnesotamniwSpec < minnesotaBaseSpec
+classdef (Hidden) minnesotamniwSpec < svar.minnesotaBaseSpec
     %MINNESOTASPEC Hyperparameter recipe for a conjugate Minnesota BVAR prior.
     %
     %   A lightweight value object that holds the Minnesota hyperparameters

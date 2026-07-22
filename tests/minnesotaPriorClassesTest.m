@@ -15,19 +15,19 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
         end
 
         function abstractBaseCannotBeInstantiated(testCase)
-            testCase.verifyError(@() minnesotabvarm(), "MATLAB:class:abstract");
+            testCase.verifyError(@() svar.minnesotabvarmBase(), "MATLAB:class:abstract");
         end
 
         function abstractSpecBaseCannotBeInstantiated(testCase)
-            testCase.verifyError(@() minnesotaBaseSpec(), "MATLAB:class:abstract");
+            testCase.verifyError(@() svar.minnesotaBaseSpec(), "MATLAB:class:abstract");
         end
 
         function concreteSpecConstructorsAreFactoryOnly(testCase)
-            testCase.verifyError(@() minnesotamniwSpec(), ...
+            testCase.verifyError(@() svar.minnesotamniwSpec(), ...
                 "MATLAB:class:MethodRestricted");
-            testCase.verifyError(@() minnesotainwSpec(), ...
+            testCase.verifyError(@() svar.minnesotainwSpec(), ...
                 "MATLAB:class:MethodRestricted");
-            testCase.verifyError(@() minnesotanSpec(), ...
+            testCase.verifyError(@() svar.minnesotanSpec(), ...
                 "MATLAB:class:MethodRestricted");
         end
 

@@ -1,4 +1,4 @@
-classdef (Abstract, Hidden) minnesotabvarm
+classdef (Abstract, Hidden) minnesotabvarmBase
     %MINNESOTABVARM Abstract shared base for Minnesota BVAR priors.
     %
     %   This class holds state and helpers common to the concrete Minnesota
