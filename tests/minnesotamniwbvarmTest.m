@@ -11,7 +11,7 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
             prior = svar.minnesotamniwbvarm(2, 1, Y);
 
             testCase.verifyEqual(prior.ResidualVariances, ...
-                estimateResidualVariances(Y, 1, Method="exact"), AbsTol=1e-12);
+                svar.estimateResidualVariances(Y, 1, Method="exact"), AbsTol=1e-12);
         end
 
         function acceptsNamedPsiEstimator(testCase)
@@ -20,7 +20,7 @@ classdef minnesotamniwbvarmTest < matlab.unittest.TestCase
             prior = svar.minnesotamniwbvarm(2, 1, Y, Psi="conditional");
 
             testCase.verifyEqual(prior.ResidualVariances, ...
-                estimateResidualVariances(Y, 1, Method="conditional"), AbsTol=1e-12);
+                svar.estimateResidualVariances(Y, 1, Method="conditional"), AbsTol=1e-12);
         end
 
         function acceptsNumericPsi(testCase)

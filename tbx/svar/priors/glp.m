@@ -226,7 +226,7 @@ psiPrior = [];
 if isstring(Psi) || ischar(Psi)
     % Resolve the estimator ONCE: the string form refits an AR per series,
     % which must never happen inside the objective.
-    fixedPsi = estimateResidualVariances(Y, numlags, Method=string(Psi));
+    fixedPsi = svar.estimateResidualVariances(Y, numlags, Method=string(Psi));
     x0 = [];
     lb = [];
     ub = [];

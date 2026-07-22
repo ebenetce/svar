@@ -105,7 +105,7 @@ classdef (Abstract) minnesotabvarmBase
             if isstring(Psi) || ischar(Psi)
                 method = string(Psi);
                 mustBeMember(method, ["exact","conditional"]);
-                psi = estimateResidualVariances(Y, numlags, Method=method);
+                psi = svar.estimateResidualVariances(Y, numlags, Method=method);
                 return
             end
 

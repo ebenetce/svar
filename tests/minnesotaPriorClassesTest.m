@@ -113,7 +113,7 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
 
         function everyFamilyEstimatesPsiFromTheSample(testCase)
             Y = minnesotaPriorClassesTest.sampleData();
-            expected = estimateResidualVariances(Y, 1, Method="conditional");
+            expected = svar.estimateResidualVariances(Y, 1, Method="conditional");
 
             for type = ["mniw" "inw" "normal"]
                 prior = minnesotabvarm(2, 1, Y, Type=type, Psi="conditional");
