@@ -192,9 +192,11 @@ log posterior ratio. The proposal is symmetric, so no Hastings correction
 applies, and candidates outside the search box are rejected rather than clipped.
 
 The Hessian is computed by central differences on the objective itself, not
-taken from `fmincon`. The optimizer's quasi-Newton approximation is an estimate
-of the Hessian of the Lagrangian, contaminated by barrier terms, and is
-generally too ill-conditioned to invert into a usable proposal covariance.
+taken from `fmincon`. The optimizer's 7th output is a BFGS approximation that
+only captures curvature in the directions the search actually moved in; the
+flat hyperparameter directions that set the width of the posterior are left
+badly estimated, making it numerically singular and useless as a proposal
+covariance once inverted.
 
 Because the search runs in natural, box-constrained coordinates, no Jacobian
 correction is needed - unlike implementations that maximize in a transformed

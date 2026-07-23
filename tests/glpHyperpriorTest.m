@@ -50,7 +50,7 @@ classdef glpHyperpriorTest < matlab.unittest.TestCase
             testCase.verifyFalse(info.PsiFree);
             testCase.verifyEqual(info.FinalPsi, mdl.ResidualVariances, AbsTol=0);
             testCase.verifyEqual(info.FinalPsi, ...
-                estimateResidualVariances(Y, 1, Method="conditional"), AbsTol=1e-12);
+                svar.estimateResidualVariances(Y, 1, Method="conditional"), AbsTol=1e-12);
         end
 
         function scalarHyperparametersAreFixed(testCase)

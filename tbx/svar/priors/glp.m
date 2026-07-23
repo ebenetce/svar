@@ -306,11 +306,25 @@ end
 
 function hessian = localNumericalHessian(objective, x, lb, ub)
 %LOCALNUMERICALHESSIAN Central-difference Hessian of the negative log posterior.
-%   Deliberately NOT fmincon's 7th output: that is a quasi-Newton
-%   approximation to the Hessian of the Lagrangian, contaminated by the
-%   barrier terms, and on this objective it comes back with a condition
-%   number around 1e12 - inverting it produces proposals hundreds of times
-%   wider than the parameters themselves and an acceptance rate of zero.
+%   Deliberately NOT fmincon's 7th output. Its interior-point default returns
+%   a BFGS approximation, and the Optimization Toolbox documentation is
+%   explicit that this "does not match the true Hessian in every component,
+%   but only in certain subspaces ... can be inaccurate". That is exactly the
+%   failure here: BFGS learns curvature only along the directions the search
+%   moved in, so it is right for the stiff psi directions and wrong by ~1e3
+%   for the flat lambda / mu / delta directions. The result is numerically
+%   singular (condition ~1e16); inverted for a proposal covariance it blows
+%   the near-null direction up to a variance hundreds of times the parameters
+%   themselves, giving an acceptance rate of zero.
+%
+%   No fmincon option fixes this: "lbfgs" and "finite-difference" return an
+%   empty Hessian, "sqp"/"active-set" return the same quasi-Newton
+%   approximation, and only "trust-region-reflective" returns a genuine
+%   finite-difference Hessian - but that algorithm needs a user-supplied
+%   gradient the marginal likelihood does not provide. A Metropolis proposal
+%   needs EVERY direction right, especially the flat ones that set the
+%   posterior's width, so the Hessian is recomputed here, fresh at the
+%   maximiser and symmetric across all coordinates.
 %
 %   Step size matters more than usual because second differences divide by
 %   h^2: a step tuned for gradients is swamped by roundoff here. Around 1% of
@@ -438,7 +452,7 @@ psiPrior = [];
 if isstring(Psi) || ischar(Psi)
     % Resolve the estimator ONCE: the string form refits an AR per series,
     % which must never happen inside the objective.
-    fixedPsi = estimateResidualVariances(Y, numlags, Method=string(Psi));
+    fixedPsi = svar.estimateResidualVariances(Y, numlags, Method=string(Psi));
     x0 = [];
     lb = [];
     ub = [];

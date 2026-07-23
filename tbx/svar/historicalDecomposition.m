@@ -36,7 +36,7 @@ function HD = historicalDecomposition(Mdl, Impact, Y, opts)
 %   See also infer, varm, bvar2var
 
 arguments
-    Mdl (1,1) %{mustBeVarOrBvar}
+    Mdl (1,1)
     Impact (:,:) double
     Y = []
     opts.Y0 double = []
@@ -46,8 +46,18 @@ arguments
     opts.ShockIndices = []
 end
 
-varMdl = bvar2var(Mdl);
-numSeries = Mdl.NumSeries;
+% Accept a fully specified varm directly, or convert a Bayesian VAR to one.
+% The decomposition operates entirely on the varm below, so the varm IS the
+% natural input; the bvar path is a convenience that defers to BVAR2VAR.
+if isa(Mdl, "varm")
+    varMdl = Mdl;
+elseif isa(Mdl, "bvar")
+    varMdl = bvar2var(Mdl);
+else
+    error("historicalDecomposition:InvalidModel", ...
+        "Mdl must be a varm model or a Bayesian VAR (bvar) object.");
+end
+numSeries = varMdl.NumSeries;
 
 if size(Impact, 1) ~= numSeries || size(Impact, 2) ~= numSeries
     error("historicalDecomposition:InvalidImpactSize", ...

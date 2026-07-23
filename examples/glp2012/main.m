@@ -77,7 +77,7 @@ lambda5Prior = hyperprior("Gamma", 1,   1,   Bounds = [1e-4, 50]);  % delta
 % so it is unreachable from the (mode, sd) parameterisation and has to be
 % given natively. Each series is started at its AR(1) residual variance and
 % searched over [psi/100, 100*psi], the authors' bounds.
-psi0     = estimateResidualVariances(Y, 1, Method = "conditional");
+psi0     = svar.estimateResidualVariances(Y, 1, Method = "conditional");
 psiPrior = arrayfun(@(v) hyperprior("InverseGamma", 0.02^2, 0.02^2, ...
     Parameterization = "native", X0 = v, Bounds = [v/100, v*100]), psi0);
 
@@ -340,7 +340,7 @@ function posteriorDensity = localLambdaPosterior(Y, numLags, lambdaGrid, lambdaP
 %   lambda is the only unknown hyperparameter and its posterior is a
 %   one-dimensional normalisation rather than an MCMC problem.
 numSeries = size(Y, 2);
-psi       = estimateResidualVariances(Y, 1, Method = "conditional");
+psi       = svar.estimateResidualVariances(Y, 1, Method = "conditional");
 
 logPosterior = arrayfun(@(lambda) ...
     logMarginalLikelihood(svar.minnesotamniwbvarm(numSeries, numLags, Y, ...
