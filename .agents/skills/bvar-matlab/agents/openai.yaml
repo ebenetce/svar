@@ -1,0 +1,8 @@
+display_name: BVAR MATLAB
+short_description: Build runnable MATLAB BVAR and SVAR analysis scripts.
+default_prompt: >-
+  Use this skill to produce a runnable MATLAB .m script for the user's BVAR or
+  SVAR task with the existing Econometrics Toolbox and this repo's svar
+  functions. Choose the matching prior, follow the prior -> estimate ->
+  simulate -> identify -> apply pipeline, respect the object-state rule, and
+  comment any Cholesky ordering assumption.

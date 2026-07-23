@@ -1,4 +1,0 @@
-interface:
-  display_name: "BVAR MATLAB"
-  short_description: "Build BVAR models in MATLAB"
-  default_prompt: "Use $bvar-matlab to build, estimate, forecast, and structurally analyze a Bayesian VAR in MATLAB."
