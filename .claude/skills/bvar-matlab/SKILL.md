@@ -2,21 +2,22 @@
 name: bvar-matlab
 description: >-
   Build, estimate, simulate, identify, and apply Bayesian and Structural Vector
-  Autoregression (BVAR / SVAR) models in MATLAB with the svar toolbox — an
-  extension of the Econometrics Toolbox. Every BVAR follows the same five-stage
-  pipeline: choose a prior, estimate, simulate, identify, apply. Covers the
-  built-in prior objects (conjugatebvarm, semiconjugatebvarm, normalbvarm,
-  diffusebvarm) AND this toolbox: the weakbvarm and uniformirbvarm reduced-form
-  priors, the Minnesota family via minnesotabvarm with glp marginal-likelihood
-  tuning and hyperprior, and the structural apply functions svar.irf, svar.fevd,
-  and historicalDecomposition. Use this skill WHENEVER the user mentions a
-  Bayesian VAR, BVAR, SVAR, Structural VAR, a Minnesota/Litterman prior, a
-  Normal-Inverse-Wishart or (semi)conjugate VAR prior, BVAR forecasting, or
-  BVAR/SVAR impulse responses / FEVD / historical decomposition in MATLAB — even
-  if they don't name the exact function. Also trigger when a user has
-  macro/finance time series and asks for a shrinkage VAR, multivariate Bayesian
-  forecasting, or structural shock analysis in MATLAB. Produces a runnable .m
-  script covering the pipeline: prior → estimate → simulate → identify → apply.
+  Autoregression (BVAR / SVAR) models in MATLAB. Every BVAR is the same
+  five-stage pipeline: choose a prior, estimate, simulate, identify, apply. The
+  prior objects cover diffuse/Jeffreys (diffusebvarm), conjugate and
+  semiconjugate Normal-Inverse-Wishart (conjugatebvarm, semiconjugatebvarm),
+  fixed-Sigma normal (normalbvarm), weak and uniform reduced-form priors
+  (weakbvarm, uniformirbvarm), and the Minnesota / Litterman family
+  (minnesotabvarm) with glp marginal-likelihood tuning and hyperprior; apply
+  covers svar.irf, svar.fevd, and historicalDecomposition. Use this skill
+  WHENEVER the user mentions a Bayesian VAR, BVAR, SVAR, Structural VAR, a
+  Minnesota/Litterman prior, a Jeffreys/diffuse or Normal-Inverse-Wishart or
+  (semi)conjugate VAR prior, BVAR forecasting, or BVAR/SVAR impulse responses /
+  FEVD / historical decomposition in MATLAB — even if they don't name the exact
+  function. Also trigger when a user has macro/finance time series and asks for
+  a shrinkage VAR, multivariate Bayesian forecasting, or structural shock
+  analysis in MATLAB. Produces a runnable .m script covering the pipeline:
+  prior → estimate → simulate → identify → apply.
 metadata:
   author: Eduard Benet Cerda
   version: "3.0"
@@ -24,105 +25,107 @@ metadata:
 
 # Bayesian / Structural VAR (BVAR / SVAR) in MATLAB
 
-This toolbox extends the Econometrics Toolbox so that **every** BVAR/SVAR
-analysis is the same five stages:
+BVAR/SVAR modeling is the same handful of stages every time. Whatever the user
+is after — forecast a system, run a structural shock analysis, reproduce a
+study, teach the method — you build it **faithfully and in a few lines** by
+picking the prior that matches the request and running the pipeline:
 
-1. **Choose a prior** — pick a prior model object.
+1. **Choose a prior** — the one that matches the request.
 2. **Estimate** — condition it on the data, getting a posterior object.
 3. **Simulate** — draw reduced-form parameters from the posterior.
 4. **Identify** — turn a covariance draw into a structural `impact` matrix.
 5. **Apply** — IRF, FEVD, historical decomposition, forecasts.
 
+Not every request needs all five. A forecasting BVAR runs stages 1–3 and then
+forecasts (no `impact` matrix, so stage 4 is skipped); structural work
+(IRF/FEVD/HD) is what needs stage 4. Pick the stages the request actually calls
+for.
+
 The deliverable is a clean, runnable, commented `.m` file sectioned with `%%`
 cells — not a chat explanation.
 
-The unifying fact: **every prior object, built-in or from this toolbox, exposes
-the same `estimate` / `simulate` / `forecast` surface.** Once stage 1 picks an
-object, stages 2–3 are written the *same way* regardless of which prior it was.
-Stages 4–5 operate on a `varm` object plus a structural `impact` matrix.
+The unifying fact: **every prior object exposes the same `estimate` / `simulate`
+/ `forecast` surface.** Once stage 1 picks the object, stages 2–3 are written the
+*same way* regardless of which prior it is; stages 4–5 operate on a `varm` plus a
+structural `impact` matrix. That uniformity is what keeps the code minimal.
 
-## Core rule: orchestrate, don't reimplement
+## Core principle: minimal code
 
-The overriding rule for every line of code the skill produces.
+Each stage is essentially one call. Reproduce, don't reimplement.
 
-- **Reuse in strict priority order: (1) an Econometrics Toolbox function → (2) a
-  function in this toolbox (`tbx/svar`) → (3) only then write something new.** If
-  a function exists, call it. Do **not** hand-roll a draw-to-`varm` converter,
-  re-derive `Mu`/`V`, or write a manual IRF loop — use `minnesotabvarm`,
-  `svar.varmFromCoefficients`, `svar.irf`. Almost every step below is one call.
-- **Write sleek code; minimise `reshape` / `permute` / `squeeze`.** `svar.irf`
-  and `svar.fevd` already return `(horizon+1) × series × shock`, so there is no
-  `permute`/`reshape` dance — quantile or plot their output directly.
-- **If something is genuinely missing**, a local function is acceptable, but give
-  the user a one-paragraph **"should this live in the toolbox?"** note (reusable
-  & general → propose adding it; one-off glue → keep it local). Extending the
-  toolbox itself — new prior classes, new identification schemes, new apply
-  functions — is a **development** task governed by the repo's `AGENTS.md`, not
-  this skill.
+- **Match the model, then let the infrastructure do the rest.** Pick the prior
+  that matches the request; then `estimate` / `simulate` /
+  `svar.varmFromCoefficients` / `svar.irf` / `svar.fevd` /
+  `historicalDecomposition` carry the analysis. Do **not** hand-roll a
+  draw-to-`varm` converter, re-derive `Mu`/`V`, or write a manual IRF loop —
+  those already exist.
+- **Prefer natural output shapes; minimise `reshape` / `permute` / `squeeze`.**
+  `svar.irf` and `svar.fevd` already return `(horizon+1) × series × shock`, so
+  quantile or plot their output directly.
+- **If the infrastructure is genuinely missing something**, a local function is
+  fine for the analysis at hand — and flag in one line whether it is general
+  enough to belong in the toolbox, so the infrastructure grows in the right
+  direction. Building new prior classes, identification schemes, or apply
+  functions is toolbox development, governed by the repo's `AGENTS.md`.
 
 ---
 
-## Stage 1 — Choose the prior
+## Stage 1 — Choose the prior that matches the request
 
-Pick the model object here. Everything downstream is identical across choices.
+The prior encodes the modeling assumptions; pick the object whose assumptions
+match what's being asked, and everything downstream is identical.
 
-### Tier A — built-in Econometrics Toolbox priors (first choice)
-
-Prefer the **direct constructors**; they take the full hyperparameter
-specification as writable properties.
-
-| Prior | Constructor | `estimate` returns | Set |
-|---|---|---|---|
-| Diffuse / noninformative | `diffusebvarm(m,p)` | `conjugatebvarm` (analytic) | nothing |
-| Matrix-Normal-IW conjugate | `conjugatebvarm(m,p,…)` | `conjugatebvarm` (analytic) | `Mu,V,Omega,DoF` |
-| Independent Normal-IW (semiconjugate) | `semiconjugatebvarm(m,p,…)` | `empiricalbvarm` (Gibbs) | `Mu,V,Omega,DoF` |
-| Normal coeffs, fixed Σ | `normalbvarm(m,p,…)` | `normalbvarm` (analytic) | `Mu,V,Sigma` |
+| If the analysis calls for… | Use | `estimate` returns |
+|---|---|---|
+| a **diffuse / Jeffreys / flat** prior (OLS-equivalent recursive SVARs; e.g. Kilian 2009, textbook VARs) | `diffusebvarm(m,p)` | `conjugatebvarm` (analytic) |
+| a **Minnesota / Litterman** shrinkage prior (forecasting, large systems; e.g. GLP 2012, Bańbura–Giannone–Reichlin 2010) | `minnesotabvarm(m,p,Y,…)` (+ `glp` to tune) | analytic / Gibbs by `Type` |
+| **Uhlig's weak** improper NIW | `weakbvarm(m,p)` | `conjugatebvarm` (analytic) |
+| a **uniform prior over impact rotations** (set/sign-ID designs) | `uniformirbvarm(m,p)` | `conjugatebvarm` (analytic) |
+| an **independent Normal-Wishart** (asymmetric own/cross shrinkage) | `minnesotabvarm(…,Type="inw")` or `semiconjugatebvarm(m,p,…)` | `empiricalbvarm` (Gibbs) |
+| **normal coefficients, fixed Σ** | `minnesotabvarm(…,Type="normal")` or `normalbvarm(m,p,…)` | `normalbvarm` (analytic) |
+| a **fully specified Matrix-Normal-IW** you set yourself | `conjugatebvarm(m,p,…)` with `Mu,V,Omega,DoF` | `conjugatebvarm` (analytic) |
 
 `m = numseries`, `p = numlags`. All accept `SeriesNames`, `IncludeConstant`,
-`IncludeTrend`, `NumPredictors`. Do **not** use `bayesvarm` unless the user asks
-for its Minnesota shortcut — it only sets these same properties.
+`IncludeTrend`, `NumPredictors`. (`bayesvarm` is only a Minnesota shortcut — use
+`minnesotabvarm` unless the user asks for it.)
 
-### Tier B — this toolbox's priors
+**No prior at all — a classical VAR?** If the request is a plain OLS VAR (point
+estimates, bootstrap bands, no Bayesian prior), skip the BVAR object and fit
+`varm` / `estimate` directly. Only stages 1–3 change: stages 4–5 are
+prior-agnostic — `svar.irf` / `svar.fevd` /
+`historicalDecomposition` take **any** `varm`. Reach for `diffusebvarm` instead
+when you want the Bayesian counterpart: the same OLS point estimates plus a
+posterior and analytic credible bands.
 
-Ready-made, no hand-building. **Reduced-form improper priors** (thin
-`conjugatebvarm` subclasses, data-free — pass `Y` at `estimate`):
+Two families need a word more.
 
+**Reduced-form improper priors** (`weakbvarm`, `uniformirbvarm`) are data-free —
+pass `Y` at `estimate`:
 ```matlab
 prior = weakbvarm(m, p);                              % Uhlig (2005) weak improper NIW
-prior = uniformirbvarm(m, p);                         % Arias-Rubio-Ramirez-Waggoner uniform-IR
-prior = uniformirbvarm(m, p, DeterminantShift=-1);
+prior = uniformirbvarm(m, p, DeterminantShift=-1);    % uniform over impact rotations
 ```
 
-**Minnesota family** — the `minnesotabvarm` front door takes the data `Y` up
-front and returns a complete prior (residual-variance scale and any dummy
-observations already resolved, and the sample stored on the object):
-
+**The Minnesota family** — the `minnesotabvarm` front door takes `Y` up front and
+returns a complete prior (residual-variance scale and any dummy observations
+already resolved, sample stored on the object):
 ```matlab
 prior = minnesotabvarm(m, p, Y);                        % conjugate MNIW (default)
 prior = minnesotabvarm(m, p, Y, lambda4=1, lambda5=1);  % + sum-of-coeff & dummy-initial-obs
 prior = minnesotabvarm(m, p, Y, Type="inw", lambda2=0.5);
 ```
+`Type` is `"mniw"` (default), `"inw"`, or `"normal"` (aliases ignore
+hyphens/underscores/spaces). Hyperparameters: `lambda1` overall tightness,
+`lambda3` lag decay, `lambda4`/`lambda5` sum-of-coefficients & dummy-initial-obs
+(`mniw`), `lambda2` cross-tightness (`inw`/`normal`), `Vc`, `PriorMean` (`0` for
+differenced series), `Psi` residual-variance scale. The family's own constructor
+validates options — passing `lambda2` to `"mniw"` errors. Full detail:
+`references/priors.md`.
 
-`Type` selects the family (aliases ignore hyphens/underscores/spaces):
-
-| `Type` | Class | Posterior | Family-specific |
-|---|---|---|---|
-| `"mniw"` (default) | conjugate MNIW | analytic NIW | `lambda4`, `lambda5` |
-| `"inw"` | independent Normal-IW | Gibbs | `lambda2` |
-| `"normal"` | normal coeffs, fixed Σ | analytic | `lambda2` |
-
-Common hyperparameters: `lambda1` overall tightness, `lambda3` lag decay,
-`Vc` deterministic-coefficient variance, `PriorMean` (use `0` for differenced
-series). `Psi` sets the residual-variance scale — a 1-by-`m` vector, or
-`"exact"` (default) / `"conditional"` naming the estimator applied to `Y`. The
-family's own constructor validates options, so passing `lambda2` to `"mniw"`
-(where conjugacy pins it to 1) is an error, not a silent no-op. Full
-hyperparameter detail: `references/priors.md`.
-
-**Tune the tightnesses by marginal likelihood** (conjugate MNIW only) with
-`glp` (Giannone–Lenza–Primiceri). A hyperparameter is *free* if you pass a
-`hyperprior` or `[lo hi]` bounds, *fixed* if you pass a scalar:
-
+**Tune the Minnesota tightnesses by marginal likelihood** (conjugate MNIW) with
+`glp` (Giannone–Lenza–Primiceri) — the way to reproduce GLP-style hierarchical
+BVARs. A hyperparameter is *free* if you pass a `hyperprior` or `[lo hi]` bounds,
+*fixed* if you pass a scalar:
 ```matlab
 psi = svar.estimateResidualVariances(Y, p, Method="conditional");   % 1-by-m scale
 [prior, info] = glp(m, p, Y, ...
@@ -131,26 +134,20 @@ psi = svar.estimateResidualVariances(Y, p, Method="conditional");   % 1-by-m sca
     lambda5 = 1, ...                                                % fixed
     Psi     = psi);
 ```
-
-`glp` returns the prior built at the marginal-likelihood maximiser. For the full
-hierarchical treatment — integrating *over* the hyperparameters rather than
-fixing them at the mode — request a third output and a Metropolis chain:
-
+`glp` returns the prior at the marginal-likelihood maximiser. To integrate *over*
+the hyperparameters (the full hierarchical treatment), ask for a third output and
+a Metropolis chain:
 ```matlab
 [prior, info, chain] = glp(m, p, Y, lambda1=..., Psi=psi, ...
     NumDraws=10000, BurnIn=10000, ProposalScale=0.8);
 % chain.Coefficients / chain.Sigma already integrate over the hyperparameters
 ```
+Feed `chain.Coefficients(:,:,d)` / `chain.Sigma(:,:,d)` straight into stage 5;
+they skip stages 2–3. See `references/pipeline.md`.
 
-Feed `chain.Coefficients(:,:,d)` and `chain.Sigma(:,:,d)` straight into stage 5;
-they skip stages 2–3. See `references/pipeline.md` for the hierarchical loop.
-
-### Extending Tier B
-
-If no built-in and no toolbox prior fits, building a **new** prior class is a
-toolbox-development task — follow the recipes in the repo's `AGENTS.md`
-(subclassing, hand-built `Mu`/`V`, Sims–Zha dummies). Do not inline a bespoke
-prior class into an analysis script.
+**If no existing prior matches the request**, a bespoke prior class is toolbox
+development, not analysis-script code — see `AGENTS.md` (subclassing, hand-built
+`Mu`/`V`, Sims–Zha dummies). Don't inline a new prior class into the script.
 
 ---
 
@@ -165,8 +162,8 @@ Condition the prior on the data. Identical call for every prior object:
 **Object-state rule.** Priors that already carry the sample — `minnesotabvarm`
 and the `glp` output — are estimated with **no** `Y` argument (`estimate(prior)`);
 passing a *different* `Y` errors, because their scale and dummies derive from the
-stored sample. Data-free priors — every built-in, plus `weakbvarm` /
-`uniformirbvarm` — **require** `Y`. The posterior class depends on the family:
+stored sample. Data-free priors — everything except `minnesotabvarm` and the
+`glp` output — **require** `Y`. The posterior class depends on the family:
 
 | Prior | Posterior class | Draws come from |
 |---|---|---|
@@ -228,8 +225,8 @@ column (VARs are linear).
 ## Stage 5 — Apply
 
 All apply functions take a `varm` object plus the `impact` matrix. Bridge from a
-BVAR draw or posterior to a `varm` with the toolbox converters — never assemble a
-`varm` by hand:
+BVAR draw or posterior to a `varm` with `svar.varmFromCoefficients` / `bvar2var`
+— never assemble a `varm` by hand:
 
 ```matlab
 Mdl = svar.varmFromCoefficients(Posterior, reshape(CoeffDraws(:,d), [], m), SigmaDraws(:,:,d)); % per draw
@@ -268,7 +265,7 @@ credible-band loop (simulate → per-draw `svar.varmFromCoefficients` → identi
 `svar.irf`/`svar.fevd` → quantiles) and the FEVD/HD plotting patterns are in
 `references/pipeline.md`.
 
-**Forecasts** use the built-in surface directly on the posterior object:
+**Forecasts** use `forecast` / `simsmooth` directly on the posterior object:
 `forecast(Posterior, fh, Y)` for mean/variance bands, or `simsmooth` with
 NaN-padded data for full predictive paths (see `references/pipeline.md`).
 Conditional forecasts are on the roadmap; until then, condition via `simsmooth`
@@ -276,9 +273,9 @@ with the known future values pinned in the NaN-padded sample.
 
 ---
 
-## SSVS — what the toolbox actually offers
+## SSVS — what's available
 
-SSVS is **not** available for the BVAR (`*bvarm`) objects, built-in or toolbox.
+SSVS is **not** available for the BVAR (`*bvarm`) objects.
 It *is* available for Bayesian linear regression via `mixsemiconjugateblm` (and
 custom priors via `customblm`). For a VAR: either approximate with heavy
 shrinkage in a semiconjugate / `inw` Minnesota prior, or estimate
@@ -286,7 +283,7 @@ equation-by-equation with `mixsemiconjugateblm` and assemble the system. State
 which you're doing; don't imply the BVAR objects support SSVS.
 
 ## Reference files
-- `references/priors.md` — Stage 1 detail: the toolbox prior constructors, the
+- `references/priors.md` — Stage 1 detail: the prior constructors, the
   `minnesotabvarm` / `glp` / `hyperprior` tuning API, the hyperparameter table,
   and the object-state rule. Read before choosing or tuning a prior.
 - `references/pipeline.md` — Stages 2–5 detail: lag selection, forecast intervals
@@ -294,11 +291,11 @@ which you're doing; don't imply the BVAR objects support SSVS.
   plotting, and historical decomposition.
 
 ## Output conventions
-- Orchestrate existing functions (Econ Toolbox → `tbx/svar` → new); no
-  reimplementation of what ships. Any new local function comes with a
-  "should this live in `tbx/svar`?" note; building new toolbox classes is an
-  `AGENTS.md` task.
-- Built-in prior first, then a toolbox prior.
+- Keep it minimal: build the requested model, then call the existing
+  functions. No reimplementation of what ships. Any local helper comes with a
+  one-line "should this live in `tbx/svar`?" note; building new toolbox classes
+  is an `AGENTS.md` task.
+- Choose the prior by fit to the request.
 - Set `rng` before any sampler-based (`inw` / semiconjugate) estimation or
   simulation, and before any `glp` Metropolis chain.
 - Respect the object-state rule: pass `Y` only to data-free priors.
