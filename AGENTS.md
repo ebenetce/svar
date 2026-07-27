@@ -1,8 +1,24 @@
 # AGENTS.md — developing the `svar` toolbox
 
 Guidance for changing this repo's code. For *using* the toolbox to build a model,
-the `bvar-matlab` skill (`.claude/skills/bvar-matlab/`) is the reference; this
+the `bvar-matlab` skill (`.agents/skills/bvar-matlab/`) is the reference; this
 file is about *extending* it.
+
+## Mandatory MATLAB project setup
+
+Before doing any MATLAB work in this repository, open the MATLAB project:
+
+```matlab
+openProject(fullfile(pwd,"SVAR.prj"));
+```
+
+If you are not starting from the repository root, open the project with an
+absolute path to `SVAR.prj`.
+
+Do not run tests, examples, analysis, or edits that depend on MATLAB project
+configuration until the project is open. If the project cannot be opened, stop
+and report that blocker instead of continuing with an unconfigured MATLAB
+session.
 
 ## What this repo is
 
