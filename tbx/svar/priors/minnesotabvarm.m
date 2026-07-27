@@ -1,7 +1,8 @@
 function mdl = minnesotabvarm(numseries, numlags, Y, varargin)
 %MINNESOTABVARM Minnesota prior for a Bayesian VAR.
 %   PriorMdl = MINNESOTABVARM(NUMSERIES,NUMLAGS,Y) creates a Minnesota
-%   (Litterman) prior for the sample Y. Everything data-dependent - the
+%   (Lit
+% terman) prior for the sample Y. Everything data-dependent - the
 %   residual-variance scale, and any dummy observations - is resolved here,
 %   so the object that comes back is a complete prior.
 %

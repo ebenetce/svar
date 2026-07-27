@@ -18,8 +18,8 @@ classdef hyperprior
     %
     %   Parameterisation
     %   ----------------
-    %   The constructor takes an interpretable (mode, standard deviation)
-    %   pair and converts it once, here, at definition:
+    %   By default the constructor takes an interpretable (mode, standard
+    %   deviation) pair and converts it once, here, at definition:
     %       hyperprior("Gamma",        mode, sd)
     %       hyperprior("InverseGamma", mode, sd)
     %       hyperprior("Beta",         mode, sd)
@@ -29,6 +29,25 @@ classdef hyperprior
     %   alpha/beta. No Optimization Toolbox, no eqnproblem: Gamma is
     %   analytic, Beta and Inverse-Gamma each reduce to a single scalar root
     %   solved with FZERO.
+    %
+    %   Some reference hyperpriors are deliberately so diffuse that no
+    %   (mode, sd) pair identifies them. The Inverse-Gamma with shape =
+    %   scale = 0.02^2 that Giannone, Lenza and Primiceri (2012) put on the
+    %   residual-variance scale has neither a mean nor a variance, and the
+    %   moment solve above needs shape > 2. For those, pass the native
+    %   parameters straight through:
+    %
+    %       hyperprior("InverseGamma", 0.02^2, 0.02^2, ...
+    %           Parameterization = "native", Bounds = [lo hi])
+    %
+    %   With Parameterization="native" the two positional inputs ARE Params,
+    %   unconverted. Only the moment solve is skipped - LOGPDF, MODEOF and
+    %   the optimiser interface are unchanged, and remain valid for shapes
+    %   the moment parameterisation cannot reach. Bounds are effectively
+    %   required in that regime: the default quantile box is computed from
+    %   GAMINV/BETAINV, which does not converge in the far tail of such a
+    %   diffuse density, and an unusable default is reported rather than
+    %   silently stored.
     %
     %   Methods
     %   -------
@@ -55,22 +74,44 @@ classdef hyperprior
 
     methods
 
-        function obj = hyperprior(distribution, mode, sd, nvp)
-            %HYPERPRIOR Construct from mode and standard deviation.
+        function obj = hyperprior(distribution, p1, p2, nvp)
+            %HYPERPRIOR Construct from mode and standard deviation, or from
+            %   native parameters when Parameterization="native".
             arguments
                 distribution (1,1) string {mustBeMember(distribution, ["Gamma", "InverseGamma", "Beta"])}
-                mode (1,1) double {mustBePositive}
-                sd (1,1) double {mustBePositive}
+                p1 (1,1) double {mustBePositive}
+                p2 (1,1) double {mustBePositive}
+                nvp.Parameterization (1,1) string ...
+                    {mustBeMember(nvp.Parameterization, ["moments", "native"])} = "moments"
                 nvp.Bounds (1,2) double
                 nvp.X0 (1,1) double
-            end  
+            end
 
             obj.Distribution = distribution;
-            [p1, p2] = fromMoments(distribution, mode, sd);
+            if nvp.Parameterization == "moments"
+                [p1, p2] = fromMoments(distribution, p1, p2);
+            end
             obj.Params       = [p1, p2];
-                
+
             if ~isfield(nvp, "Bounds")
+                % GAMINV/BETAINV silently return a non-converged quantile in
+                % the far tail of a very diffuse density. Such a box can
+                % still look ordered and in-support while excluding the very
+                % point the optimiser would start from, so the box is
+                % accepted only if it actually contains that point.
+                warnState  = warning("off", "stats:gaminv:NoConvergence");
                 obj.Bounds = obj.quantileBounds;
+                warning(warnState);
+
+                start = obj.initialValue;
+                if ~isValidBounds(obj, obj.Bounds) ...
+                        || start < obj.Bounds(1) || start > obj.Bounds(2)
+                    error("hyperprior:unusableDefaultBounds", ...
+                        "Default quantile bounds [%g %g] are not usable for " + ...
+                        "this %s (Params = [%g %g]); pass Bounds explicitly.", ...
+                        obj.Bounds(1), obj.Bounds(2), obj.Distribution, ...
+                        obj.Params(1), obj.Params(2));
+                end
             else
                 if ~isValidBounds(obj, nvp.Bounds)
                     error("hyperprior:invalidBounds", ...

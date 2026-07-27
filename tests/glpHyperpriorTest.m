@@ -101,6 +101,95 @@ classdef glpHyperpriorTest < matlab.unittest.TestCase
             testCase.verifyError(@() glp(2, 1, Y, lambda1=-1), ...
                 "glp:invalidHyperparameter");
         end
+
+        function noChainUnlessNumDrawsRequested(testCase)
+            Y = glpHyperpriorTest.persistentData();
+
+            [~, ~, chain] = glp(2, 1, Y, Psi=[0.5 1.0], lambda1=[1e-3 5], ...
+                OptimOptions=glpHyperpriorTest.optimOptions());
+
+            testCase.verifyEmpty(chain);
+        end
+
+        function chainHasOneDrawPerKeptIteration(testCase)
+            Y = glpHyperpriorTest.persistentData();
+            rng(0, "twister");
+
+            [mdl, ~, chain] = glp(2, 1, Y, Psi=[0.5 1.0], lambda1=[1e-3 5], ...
+                lambda4=[1e-3 50], NumDraws=40, BurnIn=10, ...
+                OptimOptions=glpHyperpriorTest.optimOptions());
+
+            testCase.verifySize(chain.lambda1, [40 1]);
+            testCase.verifySize(chain.Psi, [40 2]);
+            testCase.verifySize(chain.Sigma, [2 2 40]);
+            testCase.verifySize(chain.Coefficients, ...
+                [numel(mdl.Mu)/2, 2, 40]);
+            testCase.verifySize(chain.LogPosterior, [40 1]);
+            testCase.verifyEqual(chain.BurnIn, 10);
+        end
+
+        function chainStaysInsideTheSearchBox(testCase)
+            % Candidates outside the box must be rejected, not clipped.
+            Y = glpHyperpriorTest.persistentData();
+            rng(0, "twister");
+
+            [~, info, chain] = glp(2, 1, Y, Psi=[0.5 1.0], lambda1=[0.05 0.5], ...
+                NumDraws=60, BurnIn=10, ProposalScale=3, ...
+                OptimOptions=glpHyperpriorTest.optimOptions());
+
+            testCase.verifyGreaterThanOrEqual(chain.lambda1, info.LowerBound(1));
+            testCase.verifyLessThanOrEqual(chain.lambda1, info.UpperBound(1));
+        end
+
+        function fixedHyperparametersAreConstantAlongTheChain(testCase)
+            Y = glpHyperpriorTest.persistentData();
+            rng(0, "twister");
+
+            [~, ~, chain] = glp(2, 1, Y, Psi=[0.5 1.0], lambda1=[1e-3 5], ...
+                lambda3=1, NumDraws=30, BurnIn=5, ...
+                OptimOptions=glpHyperpriorTest.optimOptions());
+
+            testCase.verifyEqual(chain.lambda3, ones(30, 1), AbsTol=0);
+            testCase.verifyEqual(chain.Psi, repmat([0.5 1.0], 30, 1), AbsTol=0);
+            testCase.verifyGreaterThan(std(chain.lambda1), 0);
+        end
+
+        function samplingWithoutFreeHyperparametersErrors(testCase)
+            Y = glpHyperpriorTest.sampleData();
+
+            testCase.verifyError( ...
+                @() glp(2, 1, Y, Psi=[0.5 1.0], NumDraws=10), ...
+                "glp:nothingToSample");
+        end
+
+        function acceptanceRateFallsAsTheProposalWidens(testCase)
+            Y = glpHyperpriorTest.persistentData();
+            options = glpHyperpriorTest.optimOptions();
+
+            rng(0, "twister");
+            [~, ~, tight] = glp(2, 1, Y, Psi=[0.5 1.0], lambda1=[1e-3 5], ...
+                NumDraws=200, BurnIn=50, ProposalScale=0.3, OptimOptions=options);
+            rng(0, "twister");
+            [~, ~, wide] = glp(2, 1, Y, Psi=[0.5 1.0], lambda1=[1e-3 5], ...
+                NumDraws=200, BurnIn=50, ProposalScale=4, OptimOptions=options);
+
+            testCase.verifyGreaterThan(tight.AcceptanceRate, wide.AcceptanceRate);
+        end
+
+        function chainCentresOnTheMaximiser(testCase)
+            % A correct sampler must put the mode inside its own 95% interval.
+            Y = glpHyperpriorTest.persistentData();
+            rng(0, "twister");
+
+            [mdl, ~, chain] = glp(2, 1, Y, Psi=[0.5 1.0], lambda1=[1e-3 5], ...
+                NumDraws=800, BurnIn=400, ProposalScale=0.8, ...
+                OptimOptions=glpHyperpriorTest.optimOptions());
+
+            testCase.verifyGreaterThanOrEqual(mdl.lambda1, ...
+                quantile(chain.lambda1, 0.025));
+            testCase.verifyLessThanOrEqual(mdl.lambda1, ...
+                quantile(chain.lambda1, 0.975));
+        end
     end
 
     methods (Static, Access = private)
