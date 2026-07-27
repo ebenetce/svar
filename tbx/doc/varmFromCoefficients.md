@@ -35,8 +35,8 @@ only layout properties such as `NumSeries`, `P`, `SeriesNames`,
 
   Rows must follow the `conjugatebvarm` coefficient layout: lag coefficient
   blocks first, then the constant row if present, then the trend row if
-  present. Models with exogenous predictors are not supported by this
-  reconstruction function.
+  present, then one row per exogenous predictor if present. Predictor rows are
+  mapped to `Mdl.Beta`.
 
 `covariance` - Innovations covariance draw
 : Numeric square matrix.
@@ -63,15 +63,6 @@ drawMdl = svar.varmFromCoefficients(PosteriorMdl,Coeff(:,:,1),Sigma(:,:,1));
 drawMdl = svar.varmFromCoefficients(PosteriorMdl,Coeff(:,:,draw),Sigma(:,:,draw));
 drawIRF = svar.irf(drawMdl,impact,horizon);
 ```
-
-## More About
-
-### Predictor Limitation
-
-`svar.varmFromCoefficients` supports lag coefficients, constants, and trends.
-It throws an error when `template.NumPredictors > 0` because the reconstruction
-path does not currently map exogenous-predictor coefficients into a `varm`
-object.
 
 ## See Also
 

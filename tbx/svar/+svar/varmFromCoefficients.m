@@ -30,44 +30,41 @@ end
 numSeries = template.NumSeries;
 numLags   = template.P;
 
-if template.NumPredictors > 0
-    error("varmFromCoefficients:predictorsUnsupported", ...
-        "VARM has no exogenous-predictor slot analogous to Beta here; " + ...
-        "this reconstruction does not support NumPredictors > 0.");
-end
-
-expectedRows = numLags*numSeries + template.IncludeConstant + template.IncludeTrend;
+expectedRows = numLags*numSeries + template.IncludeConstant ...
+    + template.IncludeTrend + template.NumPredictors;
 if size(coefficients, 1) ~= expectedRows || size(coefficients, 2) ~= numSeries
     error("varmFromCoefficients:sizeMismatch", ...
         "coefficients must be %d-by-%d for this template (got %d-by-%d).", ...
         expectedRows, numSeries, size(coefficients, 1), size(coefficients, 2));
 end
 
-% Build the AR cell first and assign it ONCE. Assigning mdl.AR{lag} inside a
-% loop re-validates the whole model on every iteration, which dominates the
-% cost of this function and makes per-draw use (credible bands over thousands
-% of simulate() draws) several times slower than it needs to be.
-AR = cell(1, numLags);
+mdl             = varm(numSeries, numLags);
+mdl.SeriesNames = template.SeriesNames;
+
 for lag = 1:numLags
-    rows     = ((lag - 1)*numSeries + 1):(lag*numSeries);
-    AR{lag}  = coefficients(rows, :).';
+    rows        = ((lag - 1)*numSeries + 1):(lag*numSeries);
+    mdl.AR{lag} = coefficients(rows, :).';
 end
 
 row = numLags*numSeries;
 
 if template.IncludeConstant
-    row      = row + 1;
-    constant = coefficients(row, :).';
+    row = row + 1;
+    mdl.Constant = coefficients(row, :).';
 else
-    constant = zeros(numSeries, 1);
+    mdl.Constant = zeros(numSeries, 1);
 end
-
-mdl = varm(Constant = constant, AR = AR, Covariance = covariance);
-mdl.SeriesNames = template.SeriesNames;
 
 if template.IncludeTrend
-    row       = row + 1;
+    row = row + 1;
     mdl.Trend = coefficients(row, :).';
 end
+
+if template.NumPredictors > 0
+    rows = row + (1:template.NumPredictors);
+    mdl.Beta = coefficients(rows, :).';
+end
+
+mdl.Covariance = covariance;
 
 end
