@@ -29,3 +29,4 @@
 * [Positive-definite log determinant](logDetPD.md)
 * [Companion matrix](svar.companionMatrix.md)
 * [Companion powers](svar.companionPower.md)
+* [Seasonal dummy variables](svar.seasonalDummies.md)

@@ -89,8 +89,10 @@ sample `Y`, `ResidualVariances`, `lambda1`/`lambda3`/`Vc`/`PriorMean`, and the
   likelihood; `inw`/`normal`/semiconjugate have none. `logMarginalLikelihood`
   errors on those on purpose — keep it that way.
 - **Output shape `(H+1) × series × shock`.** All apply functions return this.
-  `svar.companionPower(Mdl, H)` is the impact-independent MA piece; new apply
-  functions accept `Phi=` so a caller can compute it once and reuse it.
+  Let apply functions compute companion powers internally by default. They
+  should also return `Phi` and accept `Phi=` so callers can reuse the blocks
+  from the first apply call. Compute `svar.companionPower(Mdl, H)` manually
+  only when the blocks are needed before the first apply call.
 
 ## Extending — read the canonical example, then match it
 
@@ -112,7 +114,8 @@ name-value forwarding via `namedargs2cell`).
   scheme is additive — put it under a `+svar` identification package and leave
   `svar.irf`/`svar.fevd` untouched.
 - **New apply function**: signature `(varMdl, impact, horizon, nvp.Phi)`, return
-  `(horizon+1) × series × shock`, reuse `svar.companionPower`. Template:
+  `(horizon+1) × series × shock` and the `Phi` blocks used. Let the function
+  call `svar.companionPower` when `Phi` is omitted. Template:
   `+svar/irf.m`, `+svar/fevd.m`.
 
 ### Minnesota `Mu` / `V` layout (stable reference)

@@ -23,6 +23,18 @@ classdef svarIrfTest < matlab.unittest.TestCase
             testCase.verifyEqual(actual, expected, AbsTol=0);
         end
 
+        function returnsCompanionPowersForReuse(testCase)
+            [mdl, impact] = svarIrfTest.stableVarModel();
+            horizon = 6;
+
+            [responses, Phi] = svar.irf(mdl, impact, horizon);
+            reused = svar.irf(mdl, impact(:, 1), horizon, Phi=Phi);
+
+            testCase.verifyEqual(Phi, svar.companionPower(mdl, horizon), ...
+                AbsTol=0);
+            testCase.verifyEqual(reused, responses(:, :, 1), AbsTol=0);
+        end
+
         function matchesVarmOrthogonalizedIrf(testCase)
             [mdl, impact] = svarIrfTest.stableVarModel();
             horizon = 6;

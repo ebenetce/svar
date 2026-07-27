@@ -1,4 +1,16 @@
 function [irf, Phi] = irf(varMdl, impact, horizon, nvp)
+%IRF - Compute impulse responses from a VAR model and impact matrix
+%   RESPONSES = IRF(varMdl,IMPACT,HORIZON) computes impulse responses
+%   from horizon 0 through HORIZON for each shock column in IMPACT.
+%
+%   RESPONSES = IRF(...,Phi=PHI) uses precomputed moving-average
+%   coefficient blocks. Use this form when reusing PHI across apply calls
+%   for the same VAR model and horizon.
+%
+%   [RESPONSES,PHI] = IRF(...) also returns the moving-average
+%   coefficient blocks used in the calculation.
+%
+%   See also fevd, companionPower, varm
 
 arguments
     varMdl 

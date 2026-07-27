@@ -16,14 +16,16 @@ responses = svar.irf(varMdl,impact,horizon,Phi=Phi)
 ## Description
 
 `responses = svar.irf(varMdl,impact,horizon)` computes impulse responses from
-horizon 0 through `horizon` for each shock column in `impact`.
+horizon 0 through `horizon` for each shock column in `impact`. This is the
+preferred form unless the companion-power blocks are reused.
 
 `responses = svar.irf(varMdl,impact,horizon,Phi=Phi)` uses precomputed
-moving-average coefficient blocks. This is useful when evaluating many impact
-matrices for the same VAR model.
+moving-average coefficient blocks. Use this form only when reusing `Phi`
+across multiple apply calls for the same VAR model and horizon.
 
 `[responses,Phi] = svar.irf(___)` also returns the moving-average coefficient
-blocks used in the calculation.
+blocks used in the calculation. Use this output from the first apply call when
+another call needs the same blocks.
 
 ## Input Arguments
 
@@ -64,9 +66,15 @@ responses = svar.irf(EstMdl,impact(:,1),horizon);
 ### Reuse Companion Powers
 
 ```matlab
-Phi = svar.companionPower(EstMdl,horizon);
-responses1 = svar.irf(EstMdl,impact1,horizon,Phi=Phi);
+[responses1,Phi] = svar.irf(EstMdl,impact1,horizon);
 responses2 = svar.irf(EstMdl,impact2,horizon,Phi=Phi);
+```
+
+### Precompute Companion Powers Explicitly
+
+```matlab
+Phi = svar.companionPower(EstMdl,horizon);
+responses = svar.irf(EstMdl,impact,horizon,Phi=Phi);
 ```
 
 ## See Also

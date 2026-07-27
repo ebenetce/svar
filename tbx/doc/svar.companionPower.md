@@ -33,7 +33,7 @@ matrix raised to power `h`.
 
 ## Examples
 
-### Precompute Blocks for Impulse Responses
+### Precompute Blocks Explicitly
 
 ```matlab
 horizon = 20;
@@ -45,9 +45,11 @@ responses = svar.irf(EstMdl,impact,horizon,Phi=Phi);
 
 ### Reuse Across Shocks
 
-The companion-power blocks depend only on the VAR model and horizon. Compute
-them once per model and reuse them when evaluating multiple impact matrices or
-multiple shocks.
+The companion-power blocks depend only on the VAR model and horizon. Most
+callers should let `svar.irf` or `svar.fevd` compute them internally. Request
+the `Phi` output from the first apply call and pass it to later calls when
+reusing the same VAR model and horizon. Call `svar.companionPower` directly
+only when the blocks are needed before the first apply call.
 
 ## See Also
 

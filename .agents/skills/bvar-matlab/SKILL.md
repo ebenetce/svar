@@ -233,15 +233,20 @@ it to `m*k x m` (`reshape(CoeffDraws(:,d), [], m)`) before
 `svar.varmFromCoefficients`. A `glp` chain already stores
 `chain.Coefficients(:,:,d)` in matrix form - pass it straight through.
 
-`svar.companionPower` is the expensive, impact-independent piece - compute it
-**once per `varm`** and reuse it across `svar.irf` / `svar.fevd`:
+`svar.irf` and `svar.fevd` compute the impact-independent companion powers
+internally by default. If the same `varm` and horizon feed more than one apply
+call, request `Phi` from the first call and pass it to the later calls:
 
 ```matlab
 H   = 20;
-Phi = svar.companionPower(Mdl, H);              % reduced-form MA blocks, reused below
-ir  = svar.irf(Mdl,  impact, H, Phi=Phi);       % (H+1) x series x shock
-fe  = svar.fevd(Mdl, impact, H, Phi=Phi);       % (H+1) x series x shock shares
+ir  = svar.irf(Mdl, impact, H);                 % simplest form
+
+[ir, Phi] = svar.irf(Mdl, impact, H);           % first reusable apply call
+fe        = svar.fevd(Mdl, impact, H, Phi=Phi); % reuse the same MA blocks
 ```
+
+Call `svar.companionPower(Mdl,H)` directly only when the blocks are needed
+before the first apply call.
 
 `svar.irf` / `svar.fevd` already return `horizon x response x shock`, so
 quantile or plot them directly - **no `permute`/`reshape`**.

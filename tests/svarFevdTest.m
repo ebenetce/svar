@@ -68,6 +68,18 @@ classdef svarFevdTest < matlab.unittest.TestCase
 
             testCase.verifyEqual(actualResponses, expectedResponses, AbsTol=0);
         end
+
+        function returnsCompanionPowersUsedInDecomposition(testCase)
+            [mdl, impact] = svarFevdTest.stableVarModel();
+            horizon = 6;
+
+            [~, responses, Phi] = svar.fevd(mdl, impact, horizon);
+            reused = svar.irf(mdl, impact, horizon, Phi=Phi);
+
+            testCase.verifyEqual(Phi, svar.companionPower(mdl, horizon), ...
+                AbsTol=0);
+            testCase.verifyEqual(reused, responses, AbsTol=0);
+        end
     end
 
     methods (Static, Access = private)

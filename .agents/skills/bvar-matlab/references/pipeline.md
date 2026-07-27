@@ -85,9 +85,9 @@ Pinning some future values in `YAug` (leaving the rest NaN) gives a poor man's
 ## 4. IRF / FEVD credible bands (per-draw loop)
 
 The canonical structural loop: simulate reduced-form draws, convert each with
-`svar.varmFromCoefficients`, identify, and apply. `svar.companionPower` is the
-expensive impact-independent piece - compute it per draw and pass it to both
-`svar.irf` and `svar.fevd`.
+`svar.varmFromCoefficients`, identify, and apply. Let `svar.irf` compute the
+companion-power blocks internally by default. If the same draw also feeds
+`svar.fevd`, reuse the `Phi` output returned by the first apply call.
 
 ```matlab
 H = 20; numDraws = 1000; shock = 1;   % shock index in SeriesNames order
@@ -101,9 +101,8 @@ for d = 1:numDraws
     % simulate returns each draw as a vector; reshape to (m*k)-by-m for the converter
     Mdl    = svar.varmFromCoefficients(Posterior, reshape(Coeff(:,d), [], m), Sigma(:,:,d));
     impact = chol(Sigma(:,:,d), "lower");     % recursive ID in SeriesNames order
-    Phi    = svar.companionPower(Mdl, H);
-    ir     = svar.irf(Mdl,  impact, H, Phi=Phi);   % (H+1) x series x shock
-    fe     = svar.fevd(Mdl, impact, H, Phi=Phi);
+    [ir, Phi] = svar.irf(Mdl, impact, H);      % (H+1) x series x shock
+    fe        = svar.fevd(Mdl, impact, H, Phi=Phi);
     irfDraws(:,:,d)  = ir(:,:,shock);
     fevdDraws(:,:,d) = fe(:,:,shock);
 end

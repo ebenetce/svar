@@ -18,14 +18,16 @@ decomposition = svar.fevd(varMdl,impact,horizon,Phi=Phi)
 `decomposition = svar.fevd(varMdl,impact,horizon)` computes FEVDs from horizon
 0 through `horizon`. The function first computes structural impulse responses
 using `svar.irf`, squares and cumulatively sums those responses over horizons,
-and normalizes by each variable's total forecast error variance.
+and normalizes by each variable's total forecast error variance. This is the
+preferred form unless the companion-power blocks are reused.
 
 `decomposition = svar.fevd(varMdl,impact,horizon,Phi=Phi)` uses precomputed
-moving-average coefficient blocks. This is useful when evaluating multiple
-impact matrices for the same VAR model.
+moving-average coefficient blocks. Use this form only when reusing `Phi`
+across multiple apply calls for the same VAR model and horizon.
 
 `[decomposition,responses,Phi] = svar.fevd(___)` also returns the impulse
-responses and moving-average coefficient blocks used in the calculation.
+responses and moving-average coefficient blocks used in the calculation. Use
+this output from the first apply call when another call needs the same blocks.
 
 ## Input Arguments
 
@@ -69,9 +71,15 @@ decomposition = svar.fevd(EstMdl,impact,horizon);
 ### Reuse Companion Powers
 
 ```matlab
-Phi = svar.companionPower(EstMdl,horizon);
-decomposition1 = svar.fevd(EstMdl,impact1,horizon,Phi=Phi);
+[decomposition1,~,Phi] = svar.fevd(EstMdl,impact1,horizon);
 decomposition2 = svar.fevd(EstMdl,impact2,horizon,Phi=Phi);
+```
+
+### Reuse Blocks From an IRF Call
+
+```matlab
+[responses,Phi] = svar.irf(EstMdl,impact,horizon);
+decomposition = svar.fevd(EstMdl,impact,horizon,Phi=Phi);
 ```
 
 ## See Also
