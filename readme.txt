@@ -4,6 +4,11 @@ It works with my fork of the skill-eval-harness available here: https://insidela
 
 Navigate to the skill-eval-harness directory and run something like:
 
+```
+python scripts\qualify.py --skills-dir C:\Users\eoldewag\Code\svar2\.agents\skills --eval 1 bvar-matlab
+```
+
+
 # With the skill loaded (default)
   python scripts/qualify.py run --skills-dir <skills-root> <skill-name>
 
