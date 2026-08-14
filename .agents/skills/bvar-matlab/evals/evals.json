@@ -1,0 +1,700 @@
+{
+  "evals": [
+    {
+      "id": 1,
+      "slug": "kilian2009-recursive-oil-svar-easy",
+      "level": 1,
+      "difficulty": "easy",
+      "timeout_seconds": 600,
+      "matlab_paths": ["tbx/svar", "tbx/svar/priors"],
+      "files": [
+        "examples/kilian2009/kilian.notalloilprices.paper.pdf",
+        "examples/kilian2009/oil_price_expectation.xlsx",
+        "tbx/svar"
+      ],
+      "prompt": "Create a runnable MATLAB main.m script that reproduces the core Kilian (2009) recursive oil-market SVAR workflow. Use the bvar-matlab skill conventions: section the script with %% cells, choose the appropriate diffuse Bayesian VAR prior, estimate the posterior, simulate posterior draws for impulse-response bands, identify shocks recursively using the ordering oil production growth, real activity, real oil price, and apply this repo's SVAR helpers for IRF, FEVD, and historical decomposition. Save the script as main.m in the current directory. Keep helper functions local at the bottom. Run the script once before finishing and write a preserved reproduction_audit.txt file with one KEY=value metric per line. The audit must include AUDIT_CASE=kilian2009, AUDIT_NUM_LAGS, AUDIT_NUM_SERIES, AUDIT_SAMPLE_OBS, AUDIT_SUPPLY_PRODUCTION_IMPACT, AUDIT_SUPPLY_PRICE_IMPACT, AUDIT_MIN_PRICE_IMPACT_ACROSS_SHOCKS, AUDIT_FEVD_PRICE_H12_SUM, and AUDIT_FEVD_PRICE_H12_SPECIFIC_MINUS_SUPPLY. These metrics must be computed from the fitted model outputs, not typed as constants.",
+      "assertions": [
+        "[file_exists] Generated main.m exists (expected: main.m)",
+        "[file_exists] Reproduction audit exists (expected: reproduction_audit.txt)",
+        "[file_contains] Script is sectioned with MATLAB cells (expected: %%) (file: main.m)",
+        "[file_contains] Uses the diffuse BVAR prior for Kilian 2009 (expected: diffusebvarm) (file: main.m)",
+        "[file_contains] Uses 24 monthly lags (expected: numLags = 24|numLags=24|numLags    = 24) (file: main.m)",
+        "[file_contains] Uses lower Cholesky recursive identification (expected: chol) (file: main.m)",
+        "[file_contains] Uses structural impulse response helper (expected: svar.irf) (file: main.m)",
+        "[file_contains] Uses FEVD helper (expected: svar.fevd) (file: main.m)",
+        "[file_contains] Uses historical decomposition helper (expected: historicalDecomposition) (file: main.m)",
+        "[file_contains] Audit identifies Kilian 2009 (expected: AUDIT_CASE=kilian2009) (file: reproduction_audit.txt)",
+        {
+          "type": "numeric_check",
+          "description": "Kilian audit uses 24 monthly lags",
+          "expected": "value == 24",
+          "extract_pattern": "AUDIT_NUM_LAGS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Kilian model has three endogenous series",
+          "expected": "value == 3",
+          "extract_pattern": "AUDIT_NUM_SERIES=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Kilian sample has a plausible monthly observation count",
+          "expected": "value in [390, 430]",
+          "extract_pattern": "AUDIT_SAMPLE_OBS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Supply disruption lowers production on impact",
+          "expected": "value < 0",
+          "extract_pattern": "AUDIT_SUPPLY_PRODUCTION_IMPACT=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Supply disruption raises real oil price on impact",
+          "expected": "value > 0",
+          "extract_pattern": "AUDIT_SUPPLY_PRICE_IMPACT=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "All normalized Kilian shocks raise oil price on impact",
+          "expected": "value > 0",
+          "extract_pattern": "AUDIT_MIN_PRICE_IMPACT_ACROSS_SHOCKS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Real-oil-price FEVD shares sum to one at h=12",
+          "expected": "value == 1",
+          "tolerance": 0.02,
+          "extract_pattern": "AUDIT_FEVD_PRICE_H12_SUM=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Oil-specific demand explains more h=12 price FEVD than supply",
+          "expected": "value > 0",
+          "extract_pattern": "AUDIT_FEVD_PRICE_H12_SPECIFIC_MINUS_SUPPLY=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        "[file_excludes] Does not manually sample NIW posteriors (expected: iwishrnd|wishrnd|mvnrnd) (file: main.m)",
+        "[convention_followed] The audit metrics are computed from the fitted VAR, Cholesky impact matrix, IRF, FEVD, and historical decomposition outputs rather than hard-coded to satisfy assertions.",
+        "[convention_followed] The IRF normalization qualitatively matches Kilian Figure 3: all shocks raise oil price, the supply disruption lowers production on impact, and the decomposition is recursive rather than sign-restricted."
+      ]
+    },
+    {
+      "id": 2,
+      "slug": "kilian2009-recursive-oil-svar-hard",
+      "level": 2,
+      "difficulty": "hard",
+      "timeout_seconds": 600,
+      "matlab_paths": ["tbx/svar", "tbx/svar/priors"],
+      "files": [
+        "examples/kilian2009/kilian.notalloilprices.paper.pdf",
+        "examples/kilian2009/oil_price_expectation.xlsx",
+        "tbx/svar"
+      ],
+      "prompt": "I want to reproduce Kilian (2009), \"Not All Oil Price Shocks Are Alike\", in MATLAB. Please create a runnable main.m script that sets up the oil-market Bayesian VAR, estimates it, and produces the main structural impulse responses, variance decomposition, and historical decomposition diagnostics. Run the script once before finishing and write a preserved reproduction_audit.txt file with one KEY=value metric per line. The audit must include AUDIT_CASE=kilian2009, AUDIT_NUM_LAGS, AUDIT_NUM_SERIES, AUDIT_SAMPLE_OBS, AUDIT_SUPPLY_PRODUCTION_IMPACT, AUDIT_SUPPLY_PRICE_IMPACT, AUDIT_MIN_PRICE_IMPACT_ACROSS_SHOCKS, AUDIT_FEVD_PRICE_H12_SUM, and AUDIT_FEVD_PRICE_H12_SPECIFIC_MINUS_SUPPLY. These metrics must be computed from the fitted model outputs, not typed as constants.",
+      "assertions": [
+        "[file_exists] Generated main.m exists (expected: main.m)",
+        "[file_exists] Reproduction audit exists (expected: reproduction_audit.txt)",
+        "[file_contains] Script is sectioned with MATLAB cells (expected: %%) (file: main.m)",
+        "[file_contains] Uses the diffuse BVAR prior for Kilian 2009 (expected: diffusebvarm) (file: main.m)",
+        "[file_contains] Uses 24 monthly lags (expected: numLags = 24|numLags=24|numLags    = 24) (file: main.m)",
+        "[file_contains] Uses lower Cholesky recursive identification (expected: chol) (file: main.m)",
+        "[file_contains] Uses structural impulse response helper (expected: svar.irf) (file: main.m)",
+        "[file_contains] Uses FEVD helper (expected: svar.fevd) (file: main.m)",
+        "[file_contains] Uses historical decomposition helper (expected: historicalDecomposition) (file: main.m)",
+        "[file_contains] Audit identifies Kilian 2009 (expected: AUDIT_CASE=kilian2009) (file: reproduction_audit.txt)",
+        {
+          "type": "numeric_check",
+          "description": "Kilian audit uses 24 monthly lags",
+          "expected": "value == 24",
+          "extract_pattern": "AUDIT_NUM_LAGS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Kilian model has three endogenous series",
+          "expected": "value == 3",
+          "extract_pattern": "AUDIT_NUM_SERIES=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Kilian sample has a plausible monthly observation count",
+          "expected": "value in [390, 430]",
+          "extract_pattern": "AUDIT_SAMPLE_OBS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Supply disruption lowers production on impact",
+          "expected": "value < 0",
+          "extract_pattern": "AUDIT_SUPPLY_PRODUCTION_IMPACT=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Supply disruption raises real oil price on impact",
+          "expected": "value > 0",
+          "extract_pattern": "AUDIT_SUPPLY_PRICE_IMPACT=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "All normalized Kilian shocks raise oil price on impact",
+          "expected": "value > 0",
+          "extract_pattern": "AUDIT_MIN_PRICE_IMPACT_ACROSS_SHOCKS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Real-oil-price FEVD shares sum to one at h=12",
+          "expected": "value == 1",
+          "tolerance": 0.02,
+          "extract_pattern": "AUDIT_FEVD_PRICE_H12_SUM=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Oil-specific demand explains more h=12 price FEVD than supply",
+          "expected": "value > 0",
+          "extract_pattern": "AUDIT_FEVD_PRICE_H12_SPECIFIC_MINUS_SUPPLY=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        "[file_excludes] Does not manually sample NIW posteriors (expected: iwishrnd|wishrnd|mvnrnd) (file: main.m)",
+        "[convention_followed] The audit metrics are computed from the fitted VAR, Cholesky impact matrix, IRF, FEVD, and historical decomposition outputs rather than hard-coded to satisfy assertions.",
+        "[convention_followed] The IRF normalization qualitatively matches Kilian Figure 3: all shocks raise oil price, the supply disruption lowers production on impact, and the decomposition is recursive rather than sign-restricted."
+      ]
+    },
+    {
+      "id": 5,
+      "slug": "glp2012-hierarchical-minnesota-easy",
+      "level": 1,
+      "difficulty": "easy",
+      "timeout_seconds": 900,
+      "matlab_paths": ["tbx/svar", "tbx/svar/priors"],
+      "files": [
+        "examples/glp2012/GLP_2012.pdf",
+        "examples/glp2012/data.mat",
+        "examples/glp2012/DataSW.mat",
+        "tbx/svar"
+      ],
+      "prompt": "Create a runnable MATLAB main.m script that implements a Giannone, Lenza and Primiceri (2012) hierarchical Minnesota BVAR workflow on quarterly macro data. Use hyperprior objects, residual-variance scale estimation, glp hyperparameter tuning with Metropolis draws, the modal posterior, predictive density forecasts, and monetary-policy Cholesky impulse responses with the federal funds rate ordered last. Use this repo's helpers for converting coefficient draws and computing structural IRFs. Save the script as main.m in the current directory. Keep helper functions local at the bottom. Run the script once before finishing and write a preserved reproduction_audit.txt file with one KEY=value metric per line. The audit must include AUDIT_CASE=glp2012, AUDIT_NUM_OBS, AUDIT_NUM_SERIES, AUDIT_NUM_LAGS, AUDIT_POLICY_INDEX, AUDIT_LAMBDA_MODE_SMALL, AUDIT_LAMBDA_MODE_MEDIUM, AUDIT_LAMBDA_MODE_GAP, AUDIT_CHAIN_ACCEPTANCE, AUDIT_MP_FFR_IMPACT, AUDIT_MP_GDP_AVG_H1_8, and AUDIT_FORECAST_STD_H1. These metrics must be computed from the fitted model outputs, not typed as constants.",
+      "assertions": [
+        "[file_exists] Generated main.m exists (expected: main.m)",
+        "[file_exists] Reproduction audit exists (expected: reproduction_audit.txt)",
+        "[file_contains] Uses hyperprior objects (expected: hyperprior) (file: main.m)",
+        "[file_contains] Estimates residual-variance scale with the toolbox (expected: svar.estimateResidualVariances) (file: main.m)",
+        "[file_contains] Tunes the Minnesota prior with GLP (expected: glp) (file: main.m)",
+        "[file_contains] Uses Metropolis draw controls (expected: NumDraws|BurnIn|ProposalScale) (file: main.m)",
+        "[file_contains] Uses structural impulse response helper (expected: svar.irf) (file: main.m)",
+        "[file_contains] Audit identifies GLP 2012 (expected: AUDIT_CASE=glp2012) (file: reproduction_audit.txt)",
+        {
+          "type": "numeric_check",
+          "description": "GLP fixture has 200 quarterly observations",
+          "expected": "value == 200",
+          "extract_pattern": "AUDIT_NUM_OBS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "GLP medium model has seven series",
+          "expected": "value == 7",
+          "extract_pattern": "AUDIT_NUM_SERIES=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "GLP uses five VAR lags",
+          "expected": "value == 5",
+          "extract_pattern": "AUDIT_NUM_LAGS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Federal funds rate is ordered last",
+          "expected": "value == 7",
+          "extract_pattern": "AUDIT_POLICY_INDEX=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Small-model lambda posterior mode matches Figure 1 range",
+          "expected": "value in [0.30, 0.60]",
+          "extract_pattern": "AUDIT_LAMBDA_MODE_SMALL=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Medium-model lambda posterior mode matches Figure 1 range",
+          "expected": "value in [0.10, 0.30]",
+          "extract_pattern": "AUDIT_LAMBDA_MODE_MEDIUM=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Lambda mode shrinks materially from small to medium model",
+          "expected": "value > 0.10",
+          "extract_pattern": "AUDIT_LAMBDA_MODE_GAP=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "GLP Metropolis acceptance rate is plausible",
+          "expected": "value in [0.05, 0.60]",
+          "extract_pattern": "AUDIT_CHAIN_ACCEPTANCE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Monetary policy shock raises funds rate on impact",
+          "expected": "value > 0",
+          "extract_pattern": "AUDIT_MP_FFR_IMPACT=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "GDP response to monetary tightening is negative on average over horizons 1-8",
+          "expected": "value < 0",
+          "extract_pattern": "AUDIT_MP_GDP_AVG_H1_8=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "One-quarter predictive density has positive dispersion",
+          "expected": "value > 0",
+          "extract_pattern": "AUDIT_FORECAST_STD_H1=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        "[file_excludes] Does not implement custom GLP MCMC in the script (expected: custom Metropolis|manual Metropolis|acceptance probability by hand) (file: main.m)",
+        "[convention_followed] The audit compares the generated outputs to GLP Figure 1 and the released predictive-density and monetary-policy examples, including hyperparameter uncertainty through chain.Coefficients and chain.Sigma."
+      ]
+    },
+    {
+      "id": 6,
+      "slug": "glp2012-hierarchical-minnesota-hard",
+      "level": 2,
+      "difficulty": "hard",
+      "timeout_seconds": 900,
+      "matlab_paths": ["tbx/svar", "tbx/svar/priors"],
+      "files": [
+        "examples/glp2012/GLP_2012.pdf",
+        "examples/glp2012/data.mat",
+        "examples/glp2012/DataSW.mat",
+        "tbx/svar"
+      ],
+      "prompt": "Reproduce the main Giannone, Lenza and Primiceri (2012) Bayesian VAR workflow in MATLAB. Please create main.m to estimate the hierarchical Minnesota prior model, account for hyperparameter uncertainty, and produce forecast density and monetary-policy impulse-response outputs. Run the script once before finishing and write a preserved reproduction_audit.txt file with one KEY=value metric per line. The audit must include AUDIT_CASE=glp2012, AUDIT_NUM_OBS, AUDIT_NUM_SERIES, AUDIT_NUM_LAGS, AUDIT_POLICY_INDEX, AUDIT_LAMBDA_MODE_SMALL, AUDIT_LAMBDA_MODE_MEDIUM, AUDIT_LAMBDA_MODE_GAP, AUDIT_CHAIN_ACCEPTANCE, AUDIT_MP_FFR_IMPACT, AUDIT_MP_GDP_AVG_H1_8, and AUDIT_FORECAST_STD_H1. These metrics must be computed from the fitted model outputs, not typed as constants.",
+      "assertions": [
+        "[file_exists] Generated main.m exists (expected: main.m)",
+        "[file_exists] Reproduction audit exists (expected: reproduction_audit.txt)",
+        "[file_contains] Uses hyperprior objects (expected: hyperprior) (file: main.m)",
+        "[file_contains] Estimates residual-variance scale with the toolbox (expected: svar.estimateResidualVariances) (file: main.m)",
+        "[file_contains] Tunes the Minnesota prior with GLP (expected: glp) (file: main.m)",
+        "[file_contains] Uses Metropolis draw controls (expected: NumDraws|BurnIn|ProposalScale) (file: main.m)",
+        "[file_contains] Uses structural impulse response helper (expected: svar.irf) (file: main.m)",
+        "[file_contains] Audit identifies GLP 2012 (expected: AUDIT_CASE=glp2012) (file: reproduction_audit.txt)",
+        {
+          "type": "numeric_check",
+          "description": "GLP fixture has 200 quarterly observations",
+          "expected": "value == 200",
+          "extract_pattern": "AUDIT_NUM_OBS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "GLP medium model has seven series",
+          "expected": "value == 7",
+          "extract_pattern": "AUDIT_NUM_SERIES=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "GLP uses five VAR lags",
+          "expected": "value == 5",
+          "extract_pattern": "AUDIT_NUM_LAGS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Federal funds rate is ordered last",
+          "expected": "value == 7",
+          "extract_pattern": "AUDIT_POLICY_INDEX=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Small-model lambda posterior mode matches Figure 1 range",
+          "expected": "value in [0.30, 0.60]",
+          "extract_pattern": "AUDIT_LAMBDA_MODE_SMALL=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Medium-model lambda posterior mode matches Figure 1 range",
+          "expected": "value in [0.10, 0.30]",
+          "extract_pattern": "AUDIT_LAMBDA_MODE_MEDIUM=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Lambda mode shrinks materially from small to medium model",
+          "expected": "value > 0.10",
+          "extract_pattern": "AUDIT_LAMBDA_MODE_GAP=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "GLP Metropolis acceptance rate is plausible",
+          "expected": "value in [0.05, 0.60]",
+          "extract_pattern": "AUDIT_CHAIN_ACCEPTANCE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Monetary policy shock raises funds rate on impact",
+          "expected": "value > 0",
+          "extract_pattern": "AUDIT_MP_FFR_IMPACT=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "GDP response to monetary tightening is negative on average over horizons 1-8",
+          "expected": "value < 0",
+          "extract_pattern": "AUDIT_MP_GDP_AVG_H1_8=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "One-quarter predictive density has positive dispersion",
+          "expected": "value > 0",
+          "extract_pattern": "AUDIT_FORECAST_STD_H1=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        "[file_excludes] Does not implement custom GLP MCMC in the script (expected: custom Metropolis|manual Metropolis|acceptance probability by hand) (file: main.m)",
+        "[convention_followed] The audit compares the generated outputs to GLP Figure 1 and the released predictive-density and monetary-policy examples, including hyperparameter uncertainty through chain.Coefficients and chain.Sigma."
+      ]
+    },
+    {
+      "id": 7,
+      "slug": "banbura2008-large-bvar-easy",
+      "level": 1,
+      "difficulty": "easy",
+      "timeout_seconds": 900,
+      "matlab_paths": ["tbx/svar", "tbx/svar/priors"],
+      "files": [
+        "examples/banbura2008/RePEc_eca_wpaper_2008_033.pdf",
+        "examples/banbura2008/banbura2008Data.mat",
+        "examples/banbura2008/archive/bgr-xls/bgrdata.xls",
+        "examples/banbura2008/archive/bgr-data/bgrdata.csv",
+        "examples/banbura2008/archive/bgr-data/bgrdata.txt",
+        "tbx/svar"
+      ],
+      "prompt": "Create a runnable MATLAB main.m script that reproduces the Banbura, Giannone and Reichlin (2008) large Bayesian VAR workflow. Include rolling forecast evaluation for SMALL, CEE, MEDIUM, and optionally LARGE panels, relative MSFE against a random-walk-with-drift benchmark, Minnesota BVAR estimation with lambda1 and sum-of-coefficients lambda4 logic, and recursive monetary-policy IRFs and FEVDs ordered slow-moving variables, FFR, fast-moving variables. Save the script as main.m in the current directory. Keep helper functions local at the bottom. Run the script once before finishing and write a preserved reproduction_audit.txt file with one KEY=value metric per line. The audit must include AUDIT_CASE=banbura2008_full, AUDIT_DATA_OBS, AUDIT_DATA_SERIES, AUDIT_NUM_LAGS, AUDIT_SMALL_SIZE, AUDIT_CEE_SIZE, AUDIT_MEDIUM_SIZE, AUDIT_CEE_LAMBDA1, AUDIT_MEDIUM_LAMBDA1, AUDIT_MAX_SOC_RATIO_ERROR, AUDIT_MEDIUM_POLICY_INDEX, AUDIT_POLICY_IMPACT_SCALE, and AUDIT_MEDIUM_CPI_H12_WITH_SOC_REL_MSFE.",
+      "assertions": [
+        "[file_exists] Generated main.m exists (expected: main.m)",
+        "[file_exists] Reproduction audit exists (expected: reproduction_audit.txt)",
+        "[file_contains] Uses Minnesota BVAR prior for Banbura panels (expected: minnesotabvarm) (file: main.m)",
+        "[file_contains] Includes rolling forecast evaluation (expected: rolling|Rolling|forecast evaluation|MSFE) (file: main.m)",
+        "[file_contains] Includes random-walk-with-drift benchmark (expected: random walk with drift|Random walk with drift|localRandomWalkWithDrift) (file: main.m)",
+        "[file_contains] Names the policy shock ordering (expected: slow-moving|FFR|fast-moving) (file: main.m)",
+        "[file_contains] Audit identifies Banbura full workflow (expected: AUDIT_CASE=banbura2008_full) (file: reproduction_audit.txt)",
+        {
+          "type": "numeric_check",
+          "description": "Banbura fixture has 528 monthly observations",
+          "expected": "value == 528",
+          "extract_pattern": "AUDIT_DATA_OBS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Banbura fixture has 131 series",
+          "expected": "value == 131",
+          "extract_pattern": "AUDIT_DATA_SERIES=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Banbura uses 13 monthly lags",
+          "expected": "value == 13",
+          "extract_pattern": "AUDIT_NUM_LAGS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "SMALL panel has three variables",
+          "expected": "value == 3",
+          "extract_pattern": "AUDIT_SMALL_SIZE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "CEE panel has seven variables",
+          "expected": "value == 7",
+          "extract_pattern": "AUDIT_CEE_SIZE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "MEDIUM panel has twenty variables",
+          "expected": "value == 20",
+          "extract_pattern": "AUDIT_MEDIUM_SIZE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "CEE lambda1 matches Table 1/4 calibration",
+          "expected": "value == 0.262",
+          "tolerance": 0.001,
+          "extract_pattern": "AUDIT_CEE_LAMBDA1=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "MEDIUM lambda1 matches Table 1/4 calibration",
+          "expected": "value == 0.108",
+          "tolerance": 0.001,
+          "extract_pattern": "AUDIT_MEDIUM_LAMBDA1=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Sum-of-coefficients tightness equals 10 times lambda1",
+          "expected": "value < 1e-9",
+          "extract_pattern": "AUDIT_MAX_SOC_RATIO_ERROR=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "MEDIUM policy index is FFR in position 13",
+          "expected": "value == 13",
+          "extract_pattern": "AUDIT_MEDIUM_POLICY_INDEX=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Policy shock is scaled to unit FFR impact",
+          "expected": "value == 1",
+          "tolerance": 0.000001,
+          "extract_pattern": "AUDIT_POLICY_IMPACT_SCALE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "MEDIUM CPI h=12 relative MSFE with SOC beats random walk",
+          "expected": "value < 1",
+          "extract_pattern": "AUDIT_MEDIUM_CPI_H12_WITH_SOC_REL_MSFE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        "[file_excludes] Does not manually sample NIW posteriors (expected: iwishrnd|wishrnd|mvnrnd) (file: main.m)",
+        "[convention_followed] The audit connects forecast tables and monetary-policy IRF/FEVD outputs to Banbura Tables 1, 4, 5 and Figure 1 rather than only checking that helper names appear."
+      ]
+    },
+    {
+      "id": 8,
+      "slug": "banbura2008-large-bvar-hard",
+      "level": 2,
+      "difficulty": "hard",
+      "timeout_seconds": 900,
+      "matlab_paths": ["tbx/svar", "tbx/svar/priors"],
+      "files": [
+        "examples/banbura2008/RePEc_eca_wpaper_2008_033.pdf",
+        "examples/banbura2008/banbura2008Data.mat",
+        "examples/banbura2008/archive/bgr-xls/bgrdata.xls",
+        "examples/banbura2008/archive/bgr-data/bgrdata.csv",
+        "examples/banbura2008/archive/bgr-data/bgrdata.txt",
+        "tbx/svar"
+      ],
+      "prompt": "I need a MATLAB script to reproduce the main workflow from Banbura, Giannone and Reichlin (2008), \"Large Bayesian VARs\". Please create main.m to estimate the small, medium, and large BVAR panels, compare forecast performance, and produce the monetary-policy shock IRF and FEVD results. Run the script once before finishing and write a preserved reproduction_audit.txt file with one KEY=value metric per line. The audit must include AUDIT_CASE=banbura2008_full, AUDIT_DATA_OBS, AUDIT_DATA_SERIES, AUDIT_NUM_LAGS, AUDIT_SMALL_SIZE, AUDIT_CEE_SIZE, AUDIT_MEDIUM_SIZE, AUDIT_CEE_LAMBDA1, AUDIT_MEDIUM_LAMBDA1, AUDIT_MAX_SOC_RATIO_ERROR, AUDIT_MEDIUM_POLICY_INDEX, AUDIT_POLICY_IMPACT_SCALE, and AUDIT_MEDIUM_CPI_H12_WITH_SOC_REL_MSFE.",
+      "assertions": [
+        "[file_exists] Generated main.m exists (expected: main.m)",
+        "[file_exists] Reproduction audit exists (expected: reproduction_audit.txt)",
+        "[file_contains] Uses Minnesota BVAR prior for Banbura panels (expected: minnesotabvarm) (file: main.m)",
+        "[file_contains] Includes rolling forecast evaluation (expected: rolling|Rolling|forecast evaluation|MSFE) (file: main.m)",
+        "[file_contains] Includes random-walk-with-drift benchmark (expected: random walk with drift|Random walk with drift|localRandomWalkWithDrift) (file: main.m)",
+        "[file_contains] Names the policy shock ordering (expected: slow-moving|FFR|fast-moving) (file: main.m)",
+        "[file_contains] Audit identifies Banbura full workflow (expected: AUDIT_CASE=banbura2008_full) (file: reproduction_audit.txt)",
+        {
+          "type": "numeric_check",
+          "description": "Banbura fixture has 528 monthly observations",
+          "expected": "value == 528",
+          "extract_pattern": "AUDIT_DATA_OBS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Banbura fixture has 131 series",
+          "expected": "value == 131",
+          "extract_pattern": "AUDIT_DATA_SERIES=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Banbura uses 13 monthly lags",
+          "expected": "value == 13",
+          "extract_pattern": "AUDIT_NUM_LAGS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "SMALL panel has three variables",
+          "expected": "value == 3",
+          "extract_pattern": "AUDIT_SMALL_SIZE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "CEE panel has seven variables",
+          "expected": "value == 7",
+          "extract_pattern": "AUDIT_CEE_SIZE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "MEDIUM panel has twenty variables",
+          "expected": "value == 20",
+          "extract_pattern": "AUDIT_MEDIUM_SIZE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "CEE lambda1 matches Table 1/4 calibration",
+          "expected": "value == 0.262",
+          "tolerance": 0.001,
+          "extract_pattern": "AUDIT_CEE_LAMBDA1=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "MEDIUM lambda1 matches Table 1/4 calibration",
+          "expected": "value == 0.108",
+          "tolerance": 0.001,
+          "extract_pattern": "AUDIT_MEDIUM_LAMBDA1=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Sum-of-coefficients tightness equals 10 times lambda1",
+          "expected": "value < 1e-9",
+          "extract_pattern": "AUDIT_MAX_SOC_RATIO_ERROR=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "MEDIUM policy index is FFR in position 13",
+          "expected": "value == 13",
+          "extract_pattern": "AUDIT_MEDIUM_POLICY_INDEX=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Policy shock is scaled to unit FFR impact",
+          "expected": "value == 1",
+          "tolerance": 0.000001,
+          "extract_pattern": "AUDIT_POLICY_IMPACT_SCALE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "MEDIUM CPI h=12 relative MSFE with SOC beats random walk",
+          "expected": "value < 1",
+          "extract_pattern": "AUDIT_MEDIUM_CPI_H12_WITH_SOC_REL_MSFE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        "[file_excludes] Does not manually sample NIW posteriors (expected: iwishrnd|wishrnd|mvnrnd) (file: main.m)",
+        "[convention_followed] The audit connects forecast tables and monetary-policy IRF/FEVD outputs to Banbura Tables 1, 4, 5 and Figure 1 rather than only checking that helper names appear."
+      ]
+    },
+    {
+      "id": 9,
+      "slug": "banbura2008-five-step-pipeline-easy",
+      "level": 1,
+      "difficulty": "easy",
+      "timeout_seconds": 600,
+      "matlab_paths": ["tbx/svar", "tbx/svar/priors"],
+      "files": [
+        "examples/banbura2008/RePEc_eca_wpaper_2008_033.pdf",
+        "examples/banbura2008/banbura2008Data.mat",
+        "examples/banbura2008/archive/bgr-xls/bgrdata.xls",
+        "examples/banbura2008/archive/bgr-data/bgrdata.csv",
+        "examples/banbura2008/archive/bgr-data/bgrdata.txt",
+        "tbx/svar"
+      ],
+      "prompt": "Create a runnable MATLAB main.m script that is an intentionally simple five-step BVAR/SVAR demo for Banbura, Giannone and Reichlin (2008). It should loop over SMALL, CEE, and MEDIUM panels and make the five steps explicit: Step 1 prior, Step 2 estimate, Step 3 simulate, Step 4 identify, Step 5 apply. Use minnesotabvarm with the sample stored on the prior, estimate without passing Y, simulate posterior draws, identify a recursive monetary-policy shock ordered slow-moving variables, FFR, fast-moving variables, scale the policy shock to a 100 bp or unit FFR impact, and compute IRFs and FEVDs with this repo's helpers. Save the script as main.m in the current directory. Keep helper functions local at the bottom. Run the script once before finishing and write a preserved reproduction_audit.txt file with one KEY=value metric per line. The audit must include AUDIT_CASE=banbura2008_five_step, AUDIT_NUM_PANELS, AUDIT_NUM_LAGS, AUDIT_SAMPLE_START, AUDIT_SAMPLE_END, AUDIT_MEDIUM_POLICY_INDEX, AUDIT_MIN_POLICY_IMPACT_SCALE, AUDIT_MAX_FEVD_SUM_ERROR, and AUDIT_MIN_IRF_HORIZON.",
+      "assertions": [
+        "[file_exists] Generated main.m exists (expected: main.m)",
+        "[file_exists] Reproduction audit exists (expected: reproduction_audit.txt)",
+        "[file_contains] Shows Step 1 prior section (expected: Step 1: prior|Step 1) (file: main.m)",
+        "[file_contains] Shows Step 2 estimate section (expected: Step 2: estimate|Step 2) (file: main.m)",
+        "[file_contains] Shows Step 3 simulate section (expected: Step 3: simulate|Step 3) (file: main.m)",
+        "[file_contains] Shows Step 4 identify section (expected: Step 4: identify|Step 4) (file: main.m)",
+        "[file_contains] Shows Step 5 apply section (expected: Step 5: apply|Step 5) (file: main.m)",
+        "[file_contains] Estimates the stored-sample Minnesota prior without passing Y (expected: estimate(priorMdl, Display|estimate(prior, Display|stores Y|stored sample) (file: main.m)",
+        "[file_contains] Audit identifies Banbura five-step demo (expected: AUDIT_CASE=banbura2008_five_step) (file: reproduction_audit.txt)",
+        "[file_contains] Five-step audit records the structural sample start (expected: AUDIT_SAMPLE_START=1961-01) (file: reproduction_audit.txt)",
+        "[file_contains] Five-step audit records the structural sample end (expected: AUDIT_SAMPLE_END=2002-12) (file: reproduction_audit.txt)",
+        {
+          "type": "numeric_check",
+          "description": "Five-step demo covers SMALL CEE and MEDIUM",
+          "expected": "value == 3",
+          "extract_pattern": "AUDIT_NUM_PANELS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Five-step demo uses 13 monthly lags",
+          "expected": "value == 13",
+          "extract_pattern": "AUDIT_NUM_LAGS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "MEDIUM policy index is FFR in position 13",
+          "expected": "value == 13",
+          "extract_pattern": "AUDIT_MEDIUM_POLICY_INDEX=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Every panel scales the policy shock to unit FFR impact",
+          "expected": "value in [0.999, 1.001]",
+          "extract_pattern": "AUDIT_MIN_POLICY_IMPACT_SCALE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "FEVD shares sum to one within numerical tolerance",
+          "expected": "value < 1e-8",
+          "extract_pattern": "AUDIT_MAX_FEVD_SUM_ERROR=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "IRF output includes horizons 0 through 48",
+          "expected": "value == 49",
+          "extract_pattern": "AUDIT_MIN_IRF_HORIZON=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        "[file_excludes] Does not manually sample NIW posteriors (expected: iwishrnd|wishrnd|mvnrnd) (file: main.m)",
+        "[convention_followed] The audit demonstrates the five explicit pipeline stages on actual SMALL, CEE and MEDIUM outputs, not just section headings."
+      ]
+    },
+    {
+      "id": 10,
+      "slug": "banbura2008-five-step-pipeline-hard",
+      "level": 2,
+      "difficulty": "hard",
+      "timeout_seconds": 600,
+      "matlab_paths": ["tbx/svar", "tbx/svar/priors"],
+      "files": [
+        "examples/banbura2008/RePEc_eca_wpaper_2008_033.pdf",
+        "examples/banbura2008/banbura2008Data.mat",
+        "examples/banbura2008/archive/bgr-xls/bgrdata.xls",
+        "examples/banbura2008/archive/bgr-data/bgrdata.csv",
+        "examples/banbura2008/archive/bgr-data/bgrdata.txt",
+        "tbx/svar"
+      ],
+      "prompt": "Create a compact MATLAB main.m demo for the Banbura, Giannone and Reichlin large BVAR example. I want it to show the end-to-end modelling workflow clearly enough that I can run it and inspect the prior, posterior draws, recursive identification, IRFs, and FEVDs. Run the script once before finishing and write a preserved reproduction_audit.txt file with one KEY=value metric per line. The audit must include AUDIT_CASE=banbura2008_five_step, AUDIT_NUM_PANELS, AUDIT_NUM_LAGS, AUDIT_SAMPLE_START, AUDIT_SAMPLE_END, AUDIT_MEDIUM_POLICY_INDEX, AUDIT_MIN_POLICY_IMPACT_SCALE, AUDIT_MAX_FEVD_SUM_ERROR, and AUDIT_MIN_IRF_HORIZON.",
+      "assertions": [
+        "[file_exists] Generated main.m exists (expected: main.m)",
+        "[file_exists] Reproduction audit exists (expected: reproduction_audit.txt)",
+        "[file_contains] Shows Step 1 prior section (expected: Step 1: prior|Step 1) (file: main.m)",
+        "[file_contains] Shows Step 2 estimate section (expected: Step 2: estimate|Step 2) (file: main.m)",
+        "[file_contains] Shows Step 3 simulate section (expected: Step 3: simulate|Step 3) (file: main.m)",
+        "[file_contains] Shows Step 4 identify section (expected: Step 4: identify|Step 4) (file: main.m)",
+        "[file_contains] Shows Step 5 apply section (expected: Step 5: apply|Step 5) (file: main.m)",
+        "[file_contains] Estimates the stored-sample Minnesota prior without passing Y (expected: estimate(priorMdl, Display|estimate(prior, Display|stores Y|stored sample) (file: main.m)",
+        "[file_contains] Audit identifies Banbura five-step demo (expected: AUDIT_CASE=banbura2008_five_step) (file: reproduction_audit.txt)",
+        "[file_contains] Five-step audit records the structural sample start (expected: AUDIT_SAMPLE_START=1961-01) (file: reproduction_audit.txt)",
+        "[file_contains] Five-step audit records the structural sample end (expected: AUDIT_SAMPLE_END=2002-12) (file: reproduction_audit.txt)",
+        {
+          "type": "numeric_check",
+          "description": "Five-step demo covers SMALL CEE and MEDIUM",
+          "expected": "value == 3",
+          "extract_pattern": "AUDIT_NUM_PANELS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Five-step demo uses 13 monthly lags",
+          "expected": "value == 13",
+          "extract_pattern": "AUDIT_NUM_LAGS=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "MEDIUM policy index is FFR in position 13",
+          "expected": "value == 13",
+          "extract_pattern": "AUDIT_MEDIUM_POLICY_INDEX=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "Every panel scales the policy shock to unit FFR impact",
+          "expected": "value in [0.999, 1.001]",
+          "extract_pattern": "AUDIT_MIN_POLICY_IMPACT_SCALE=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "FEVD shares sum to one within numerical tolerance",
+          "expected": "value < 1e-8",
+          "extract_pattern": "AUDIT_MAX_FEVD_SUM_ERROR=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        {
+          "type": "numeric_check",
+          "description": "IRF output includes horizons 0 through 48",
+          "expected": "value == 49",
+          "extract_pattern": "AUDIT_MIN_IRF_HORIZON=([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"
+        },
+        "[file_excludes] Does not manually sample NIW posteriors (expected: iwishrnd|wishrnd|mvnrnd) (file: main.m)",
+        "[convention_followed] The audit demonstrates the five explicit pipeline stages on actual SMALL, CEE and MEDIUM outputs, not just section headings."
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "id": 3,
+      "slug": "kilian2014-reduced-form-diagnostic-easy",
+      "reason": "Skipped until Kilian-Murphy 2014 data fixtures are available locally."
+    },
+    {
+      "id": 4,
+      "slug": "kilian2014-reduced-form-diagnostic-hard",
+      "reason": "Skipped until Kilian-Murphy 2014 data fixtures are available locally."
+    }
+  ]
+}

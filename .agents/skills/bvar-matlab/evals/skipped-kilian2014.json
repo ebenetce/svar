@@ -1,0 +1,19 @@
+{
+  "reason": "Kilian-Murphy 2014 evals are temporarily skipped until the local data fixture is available.",
+  "skipped": [
+    {
+      "id": 3,
+      "slug": "kilian2014-reduced-form-diagnostic-easy",
+      "level": 1,
+      "difficulty": "easy",
+      "note": "Future correctness checks should validate four variables, 24 lags, seasonal dummies, 112 posterior draws, Cholesky labelled diagnostic only, and explicit omission of sign/zero/elasticity/admissibility/Haar restrictions."
+    },
+    {
+      "id": 4,
+      "slug": "kilian2014-reduced-form-diagnostic-hard",
+      "level": 2,
+      "difficulty": "hard",
+      "note": "Future correctness checks should validate four variables, 24 lags, seasonal dummies, 112 posterior draws, Cholesky labelled diagnostic only, and explicit omission of sign/zero/elasticity/admissibility/Haar restrictions."
+    }
+  ]
+}

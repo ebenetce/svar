@@ -45,5 +45,6 @@ examples/MountfordUhlig2009/*
 !examples/SimsZha1999/
 examples/SimsZha1999/*
 !examples/SimsZha1999/main.m
+.agents/skills/skill-evals/*
 
 public/

@@ -36,6 +36,11 @@ for.
 The deliverable is a clean, runnable, commented `.m` file sectioned with `%%`
 cells - not a chat explanation.
 
+If `svar.*`, `bvar2var`, `minnesotabvarm`, `glp`, `hyperprior`, `weakbvarm`,
+or `uniformirbvarm` are not visible in MATLAB, add only the local toolbox paths
+`tbx/svar` and `tbx/svar/priors`. Do not reimplement toolbox functions because
+of path uncertainty.
+
 The unifying fact: **every prior object exposes the same `estimate` /
 `simulate` / `forecast` surface.** Once stage 1 picks the object, stages 2-3
 are written the same way regardless of which prior it is; stages 4-5 operate
