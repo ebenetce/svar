@@ -1,0 +1,10 @@
+name = "SVAR"
+
+[folders]
+path = [
+    "tbx/svar",
+    "tbx/svar/priors",
+]
+test = [
+    "tests",
+]

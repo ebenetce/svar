@@ -9,11 +9,11 @@ file is about *extending* it.
 Before doing any MATLAB work in this repository, open the MATLAB project:
 
 ```matlab
-openProject(fullfile(pwd,"SVAR.prj"));
+openProject(fullfile(pwd,"matlab.toml"));
 ```
 
 If you are not starting from the repository root, open the project with an
-absolute path to `SVAR.prj`.
+absolute path to `matlab.toml`.
 
 Do not run tests, examples, analysis, or edits that depend on MATLAB project
 configuration until the project is open. If the project cannot be opened, stop
