@@ -17,6 +17,7 @@
 
 ## Applications
 
+* [Structural identification](svar.identify.md)
 * [Impulse responses](svar.irf.md)
 * [Forecast error variance decomposition](svar.fevd.md)
 * [Historical decomposition](historicalDecomposition.md)

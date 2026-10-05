@@ -45,6 +45,8 @@ workflows that start from `conjugatebvarm` or `varm` models.
 
 ## Structural VAR Package Functions
 
+* [svar.identify](svar.identify.md) - Identify structural impacts from a
+  reduced-form covariance matrix.
 * [svar.irf](svar.irf.md) - Compute structural impulse responses from a VAR
   model and impact matrix.
 * [svar.fevd](svar.fevd.md) - Compute forecast error variance decompositions
