@@ -18,6 +18,8 @@
 ## Applications
 
 * [Structural identification](svar.identify.md)
+* [Sign restriction](svar.SignRestriction.md)
+* [Zero restriction](svar.ZeroRestriction.md)
 * [Impulse responses](svar.irf.md)
 * [Forecast error variance decomposition](svar.fevd.md)
 * [Historical decomposition](historicalDecomposition.md)

@@ -62,6 +62,9 @@ options.
 `Vc` - Prior variance for deterministic terms
 : `1e4` (default) | positive scalar.
 
+  The conjugate covariance factor is shared across response equations, so
+  equation-specific `Vc` values are not supported.
+
 `PriorMean` - Own first-lag prior mean
 : `ones(1,numseries)` (default) | numeric row vector.
 
@@ -102,6 +105,8 @@ options.
 
 `Vc` - Prior variance for deterministic terms
 : Positive scalar.
+
+  The value is shared across response equations.
 
 `PriorMean` - Own first-lag prior mean
 : Row vector with one value per response series.

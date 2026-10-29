@@ -47,6 +47,10 @@ workflows that start from `conjugatebvarm` or `varm` models.
 
 * [svar.identify](svar.identify.md) - Identify structural impacts from a
   reduced-form covariance matrix.
+* [svar.SignRestriction](svar.SignRestriction.md) - Restrict impulse-response
+  signs.
+* [svar.ZeroRestriction](svar.ZeroRestriction.md) - Restrict impact responses
+  to zero.
 * [svar.irf](svar.irf.md) - Compute structural impulse responses from a VAR
   model and impact matrix.
 * [svar.fevd](svar.fevd.md) - Compute forecast error variance decompositions

@@ -56,7 +56,11 @@ options.
 : `1` (default) | nonnegative scalar.
 
 `Vc` - Prior variance for deterministic terms
-: `1e4` (default) | positive scalar.
+: `1e4` (default) | positive scalar | positive `1`-by-`numseries` vector.
+
+  A scalar applies to every response equation. A vector assigns the variance
+  for the constant, trend, and every external predictor in its corresponding
+  response equation.
 
 `PriorMean` - Own first-lag prior mean
 : `ones(1,numseries)` (default) | numeric row vector.
@@ -91,7 +95,7 @@ options.
 : Nonnegative scalar.
 
 `Vc` - Prior variance for deterministic terms
-: Positive scalar.
+: Positive scalar or positive row vector with one value per response series.
 
 `PriorMean` - Own first-lag prior mean
 : Row vector with one value per response series.

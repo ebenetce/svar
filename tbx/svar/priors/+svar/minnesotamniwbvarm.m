@@ -63,7 +63,7 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
                 nvp.lambda3   (1,1) double {mustBeNonnegative} = 1
                 nvp.lambda4   (1,1) double {mustBePositive}    = Inf
                 nvp.lambda5   (1,1) double {mustBePositive}    = Inf
-                nvp.Vc        (1,1) double {mustBePositive}    = 1e4
+                nvp.Vc        (1,:) double {mustBePositive}    = 1e4
                 nvp.PriorMean (1,:) double = ones(1, numseries)
                 nvp2.Description
                 nvp2.IncludeConstant
@@ -80,6 +80,10 @@ classdef minnesotamniwbvarm < conjugatebvarm & svar.minnesotabvarmBase & matlab.
             args = namedargs2cell(nvp2);
             obj  = obj@conjugatebvarm(numseries, numlags, args{:});
 
+            if ~isscalar(nvp.Vc)
+                error("minnesotamniwbvarm:invalidVc", ...
+                    "Vc must be a positive scalar for the conjugate MNIW prior.");
+            end
             obj = obj.configureMinnesota(Y, numlags, nvp, "minnesotamniwbvarm");
             obj.lambda4 = nvp.lambda4;
             obj.lambda5 = nvp.lambda5;

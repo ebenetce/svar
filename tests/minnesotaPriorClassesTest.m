@@ -196,6 +196,50 @@ classdef minnesotaPriorClassesTest < matlab.unittest.TestCase
             testCase.verifyEqual(independent.V, normal.V, AbsTol=0);
         end
 
+        function independentAndNormalAcceptEquationSpecificVc(testCase)
+            Y = minnesotaPriorClassesTest.sampleData();
+            Vc = [9 16];
+
+            for type = ["inw" "normal"]
+                prior = minnesotabvarm(2, 1, Y, Type=type, Psi=[1 4], Vc=Vc, ...
+                    IncludeTrend=true, NumPredictors=1);
+                vDiag = diag(prior.V);
+
+                testCase.verifyEqual(prior.Vc, Vc, AbsTol=0);
+                testCase.verifyEqual(vDiag(3:5), Vc(1)*ones(3,1), AbsTol=0);
+                testCase.verifyEqual(vDiag(8:10), Vc(2)*ones(3,1), AbsTol=0);
+            end
+        end
+
+        function scalarVcRemainsSharedAcrossEquations(testCase)
+            Y = minnesotaPriorClassesTest.sampleData();
+            prior = minnesotabvarm(2, 1, Y, Type="normal", Psi=[1 4], Vc=9);
+
+            testCase.verifyEqual(prior.Vc, 9, AbsTol=0);
+            testCase.verifyEqual(diag(prior.V), ...
+                [0.04; 0.0025; 9; 0.04; 0.04; 9], AbsTol=1e-14);
+        end
+
+        function rejectsWrongLengthEquationSpecificVc(testCase)
+            Y = minnesotaPriorClassesTest.sampleData();
+            types = ["inw" "normal"];
+            errorIDs = ["minnesotainwbvarm:invalidVc" "minnesotanbvarm:invalidVc"];
+
+            for k = 1:numel(types)
+                testCase.verifyError( ...
+                    @() minnesotabvarm(2, 1, Y, Type=types(k), Psi=[1 4], Vc=[1 2 3]), ...
+                    errorIDs(k));
+            end
+        end
+
+        function conjugatePriorRejectsEquationSpecificVc(testCase)
+            Y = minnesotaPriorClassesTest.sampleData();
+
+            testCase.verifyError( ...
+                @() minnesotabvarm(2, 1, Y, Type="mniw", Psi=[1 4], Vc=[9 16]), ...
+                "minnesotamniwbvarm:invalidVc");
+        end
+
         function normalPriorEstimateReturnsNormalPosterior(testCase)
             Y = minnesotaPriorClassesTest.sampleData();
             prior = svar.minnesotanbvarm(2, 1, Y, Psi=[1 4], ...

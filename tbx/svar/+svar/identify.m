@@ -1,4 +1,4 @@
-function [impact, info] = identify(Mdl, Method, nvp)
+function [impact, info] = identify(Mdl, specification, nvp)
 %IDENTIFY - Identify structural shocks from a reduced-form covariance
 %   IMPACT = IDENTIFY(Mdl,METHOD) identifies structural shocks using the
 %   covariance matrix in the fitted VARM model Mdl. For Bayesian VAR models,
@@ -16,6 +16,13 @@ function [impact, info] = identify(Mdl, Method, nvp)
 %   or of the model's series names. It determines the structural-shock
 %   column order; response rows remain in the model's native series order.
 %
+%   IMPACT = IDENTIFY(Mdl,RESTRICTIONS,...) draws structural models that
+%   satisfy public svar restriction declarations. This form requires
+%   ShockNames and uses independent reduced-form draws. For impact zero
+%   restrictions, rotations are drawn conditionally on the zero constraints.
+%   Set Sampler="elliptical" to use an elliptical slice within Gibbs sampler
+%   for sign-restricted conjugate BVAR posteriors.
+%
 %   METHOD must be "cholesky", "recursive", "triangular", or "reduced".
 %   Cholesky and recursive identification return a unit-variance impact
 %   matrix. Triangular identification returns the same impact matrix and
@@ -27,12 +34,71 @@ function [impact, info] = identify(Mdl, Method, nvp)
 
 arguments
     Mdl (1,1) {mustBeA(Mdl, ["varm", "bvar"])}
-    Method (1,1) string = "cholesky"
+    specification = "cholesky"
     nvp.Sigma double {mustBeReal, mustBeFinite} = []
     nvp.Ordering = []
+    nvp.ShockNames (1,:) string = strings(1, 0)
+    nvp.NumDraws (1,1) double {mustBeInteger, mustBePositive} = 1
+    nvp.BatchSize (1,1) double {mustBeInteger, mustBePositive} = 100
+    nvp.MaxCandidates (1,1) double {mustBeInteger, mustBePositive} = 100000
+    nvp.Sampler (1,1) string {mustBeMember(nvp.Sampler, ...
+        ["independent", "elliptical"])} = "independent"
+    nvp.BurnIn (1,1) double {mustBeInteger, mustBeNonnegative} = 0
+    nvp.Thin (1,1) double {mustBeInteger, mustBePositive} = 1
+    nvp.MaxSliceSteps (1,1) double {mustBeInteger, mustBePositive} = 10000
+    nvp.NumParticles (1,1) double {mustBeInteger, mustBePositive} = 500
+    nvp.MutationSteps (1,1) double {mustBeInteger, mustBePositive} = 2
+    nvp.TargetSurvivalRate (1,1) double { ...
+        mustBeGreaterThan(nvp.TargetSurvivalRate, 0), ...
+        mustBeLessThanOrEqual(nvp.TargetSurvivalRate, 1)} = 0.2
+    nvp.MaxInitializationStages (1,1) double {mustBeInteger, ...
+        mustBePositive} = 50
 end
 
-switch Method
+if isa(specification, "svar.identification.Restriction")
+    if isempty(nvp.ShockNames)
+        error("svar:identify:MissingShockNames", ...
+            "Restricted identification requires complete ShockNames.");
+    end
+    if numel(nvp.ShockNames) ~= Mdl.NumSeries || ...
+            numel(unique(nvp.ShockNames)) ~= Mdl.NumSeries
+        error("svar:identify:InvalidShockNames", ...
+            "ShockNames must contain one unique name for each series.");
+    end
+    restrictionSet = svar.identification.RestrictionSet( ...
+        string(Mdl.SeriesNames), ShockOrder=nvp.ShockNames);
+    for restriction = reshape(specification, 1, [])
+        restrictionSet = restrictionSet.add(restriction);
+    end
+    switch nvp.Sampler
+        case "independent"
+            [impact, info] = svar.identification.IndependentSampler.identify( ...
+                Mdl, restrictionSet, ...
+                NumDraws=nvp.NumDraws, BatchSize=nvp.BatchSize, ...
+                MaxCandidates=nvp.MaxCandidates);
+        case "elliptical"
+            if ~isa(Mdl, "conjugatebvarm")
+                error("svar:identify:EllipticalRequiresConjugate", ...
+                    "Elliptical sampling requires a conjugatebvarm posterior.");
+            end
+            [impact, info] = svar.identification.EllipticalSampler.identify( ...
+                Mdl, restrictionSet, NumDraws=nvp.NumDraws, ...
+                BurnIn=nvp.BurnIn, Thin=nvp.Thin, ...
+                MaxSliceSteps=nvp.MaxSliceSteps, ...
+                NumParticles=nvp.NumParticles, ...
+                MutationSteps=nvp.MutationSteps, ...
+                TargetSurvivalRate=nvp.TargetSurvivalRate, ...
+                MaxInitializationStages=nvp.MaxInitializationStages);
+    end
+    return
+end
+
+if ~isstring(specification) || ~isscalar(specification)
+    error("svar:identify:InvalidSpecification", ...
+        "Specify a method string or svar restriction declarations.");
+end
+
+switch specification
     case {"cholesky", "recursive"}
         method = "cholesky";
     case "triangular"

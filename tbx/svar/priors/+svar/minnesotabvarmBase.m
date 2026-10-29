@@ -28,7 +28,7 @@ classdef (Abstract) minnesotabvarmBase
         ResidualVariances (1,:) double {mustBePositive}
         lambda1   (1,1) double {mustBePositive}    = 0.2
         lambda3   (1,1) double {mustBeNonnegative} = 1
-        Vc        (1,1) double {mustBePositive}    = 1e4
+        Vc        (1,:) double {mustBePositive}    = 1e4
         PriorMean (1,:) double
     end
 
@@ -91,12 +91,13 @@ classdef (Abstract) minnesotabvarmBase
             residualVariances = obj.resolvePsi(nvp.Psi, Y, numlags, errorPrefix);
             priorMean = obj.validateMinnesotaInputs( ...
                 residualVariances, nvp.PriorMean, errorPrefix);
+            Vc = obj.validateVc(nvp.Vc, errorPrefix);
 
             obj.Y                 = Y;
             obj.ResidualVariances = residualVariances;
             obj.lambda1           = nvp.lambda1;
             obj.lambda3           = nvp.lambda3;
-            obj.Vc                = nvp.Vc;
+            obj.Vc                = Vc;
             obj.PriorMean         = priorMean;
         end
 
@@ -147,6 +148,25 @@ classdef (Abstract) minnesotabvarmBase
             Mu            = MuMat(:);
         end
 
+        function Vc = validateVc(obj, VcValue, errorPrefix)
+            %VALIDATEVC Validate shared or equation-specific deterministic variance.
+            if ~isscalar(VcValue) && numel(VcValue) ~= obj.NumSeries
+                error(errorPrefix + ":invalidVc", ...
+                    "Vc must be a positive scalar or a 1-by-%d vector.", ...
+                    obj.NumSeries);
+            end
+            Vc = reshape(VcValue, 1, []);
+        end
+
+        function variance = deterministicVariance(obj, equation)
+            %DETERMINISTICVARIANCE Return the variance for one response equation.
+            if isscalar(obj.Vc)
+                variance = obj.Vc;
+            else
+                variance = obj.Vc(equation);
+            end
+        end
+
         function V = buildIndependentCoefficientCovariance(obj, lambda2)
             %BUILDINDEPENDENTCOEFFICIENTCOVARIANCE Full (m*n)-by-(m*n) diagonal V.
             %   Shared by the INW and fixed-Sigma Normal families: both drop
@@ -175,7 +195,7 @@ classdef (Abstract) minnesotabvarmBase
                         variance = crossFactor * obj.lambda1^2 ...
                             / lag^(2*obj.lambda3) * (psi(i) / psi(source));
                     else
-                        variance = obj.Vc;
+                        variance = obj.deterministicVariance(i);
                     end
                     vDiag((i - 1)*mm + r) = variance;
                 end

@@ -28,7 +28,7 @@ classdef minnesotanbvarm < normalbvarm & svar.minnesotabvarmBase & matlab.mixin.
                 nvp.lambda1   (1,1) double {mustBePositive}    = 0.2
                 nvp.lambda2   (1,1) double {mustBePositive}    = 0.5
                 nvp.lambda3   (1,1) double {mustBeNonnegative} = 1
-                nvp.Vc        (1,1) double {mustBePositive}    = 1e4
+                nvp.Vc        (1,:) double {mustBePositive}    = 1e4
                 nvp.PriorMean (1,:) double = ones(1, numseries)
                 nvp2.Description
                 nvp2.IncludeConstant

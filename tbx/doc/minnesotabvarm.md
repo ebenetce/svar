@@ -72,7 +72,13 @@ Minnesota hyperparameters, and inherited Bayesian VAR model options.
 : `Inf` (default) | positive scalar. Applies to `Type="mniw"`.
 
 `Vc` - Prior variance for deterministic terms
-: `1e4` (default) | positive scalar.
+: `1e4` (default) | positive scalar | positive `1`-by-`numseries` vector.
+
+  A scalar applies to every response equation. A vector assigns the variance
+  for the constant, trend, and every external predictor in its corresponding
+  response equation. Equation-specific values apply to `Type="inw"` and
+  `Type="normal"` only; the conjugate `Type="mniw"` requires a scalar because
+  it has a covariance factor shared across equations.
 
 `PriorMean` - Own first-lag prior mean
 : `ones(1,numseries)` (default) | numeric row vector.
